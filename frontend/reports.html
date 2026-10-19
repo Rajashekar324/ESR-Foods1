@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Reports</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Report Type Selection -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Select Report Type</h3>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                    <button class="btn btn-outline" onclick="showSalesReport()">Sales Report</button>
+                    <button class="btn btn-outline" onclick="showPurchasesReport()">Purchases Report</button>
+                    <button class="btn btn-outline" onclick="showInventoryReport()">Inventory Report</button>
+                    <button class="btn btn-outline" onclick="showRestaurantsReport()">Restaurants Report</button>
+                    <button class="btn btn-outline" onclick="show15DayReport()">15-Day Summary</button>
+                    <button class="btn btn-outline" onclick="showProfitReport()">Profit Report</button>
+                </div>
+            </div>
+
+            <!-- Sales Report Section -->
+            <div id="salesReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Sales Report</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generateSalesReport()">Generate</button>
+                </div>
+                <div class="filter-bar">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>Start Date:</span>
+                        <input type="date" id="salesStartDate" class="form-input">
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>End Date:</span>
+                        <input type="date" id="salesEndDate" class="form-input">
+                    </label>
+                    <select id="salesRestaurantFilter" class="form-select filter-select">
+                        <option value="">All Restaurants</option>
+                    </select>
+                </div>
+                <div id="salesReportContent"></div>
+            </div>
+
+            <!-- Purchases Report Section -->
+            <div id="purchasesReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Purchases Report</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generatePurchasesReport()">Generate</button>
+                </div>
+                <div class="filter-bar">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>Start Date:</span>
+                        <input type="date" id="purchasesStartDate" class="form-input">
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>End Date:</span>
+                        <input type="date" id="purchasesEndDate" class="form-input">
+                    </label>
+                    <select id="purchasesVendorFilter" class="form-select filter-select">
+                        <option value="">All Vendors</option>
+                    </select>
+                </div>
+                <div id="purchasesReportContent"></div>
+            </div>
+
+            <!-- Inventory Report Section -->
+            <div id="inventoryReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Inventory Report</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generateInventoryReport()">Generate</button>
+                </div>
+                <div id="inventoryReportContent"></div>
+            </div>
+
+            <!-- Restaurants Report Section -->
+            <div id="restaurantsReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Restaurants Report</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generateRestaurantsReport()">Generate</button>
+                </div>
+                <div id="restaurantsReportContent"></div>
+            </div>
+
+            <!-- 15-Day Report Section -->
+            <div id="15DayReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">15-Day Billing Summary</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generate15DayReport()">Generate</button>
+                </div>
+                <div class="filter-bar">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>Start Date:</span>
+                        <input type="date" id="15DayStartDate" class="form-input">
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>End Date:</span>
+                        <input type="date" id="15DayEndDate" class="form-input">
+                    </label>
+                </div>
+                <div id="15DayReportContent"></div>
+            </div>
+
+            <!-- Profit Report Section -->
+            <div id="profitReportSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">Profit Report</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="generateProfitReport()">Generate</button>
+                </div>
+                <div class="filter-bar">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>Start Date:</span>
+                        <input type="date" id="profitStartDate" class="form-input">
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <span>End Date:</span>
+                        <input type="date" id="profitEndDate" class="form-input">
+                    </label>
+                </div>
+                <div id="profitReportContent"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+    <script src="/frontend/js/reports.js"></script>
+</body>
+</html>

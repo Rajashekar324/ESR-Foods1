@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Dashboard</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card primary">
+                    <div class="stat-label">Today's Sales</div>
+                    <div class="stat-value" id="todaySales">₹0</div>
+                    <div class="stat-trend positive">Today</div>
+                </div>
+                <div class="stat-card secondary">
+                    <div class="stat-label">Today's Purchases</div>
+                    <div class="stat-value" id="todayPurchases">₹0</div>
+                    <div class="stat-trend">Today</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-label">Monthly Sales</div>
+                    <div class="stat-value" id="monthlySales">₹0</div>
+                    <div class="stat-trend positive">This Month</div>
+                </div>
+                <div class="stat-card highlight">
+                    <div class="stat-label">Outstanding Receivables</div>
+                    <div class="stat-value" id="outstandingReceivables">₹0</div>
+                    <div class="stat-trend negative">Pending Collection</div>
+                </div>
+                <div class="stat-card primary">
+                    <div class="stat-label">Total Stock Value</div>
+                    <div class="stat-value" id="totalStockValue">₹0</div>
+                    <div class="stat-trend">Current</div>
+                </div>
+                <div class="stat-card secondary">
+                    <div class="stat-label">Active Restaurants</div>
+                    <div class="stat-value" id="activeRestaurants">0</div>
+                    <div class="stat-trend positive">Active</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-label">Low Stock Products</div>
+                    <div class="stat-value" id="lowStockProducts">0</div>
+                    <div class="stat-trend negative">Need Reorder</div>
+                </div>
+                <div class="stat-card highlight">
+                    <div class="stat-label">Expiring Products</div>
+                    <div class="stat-value" id="expiringProducts">0</div>
+                    <div class="stat-trend negative">Within 7 Days</div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Sales Trend (6 Months)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="salesTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Top Products (By Sales)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="topProductsChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Top Restaurants (By Sales)</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="topRestaurantsChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Inventory Distribution</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="inventoryDistributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 15-Day Summary -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Current 15-Day Billing Period Summary</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="refresh15DaySummary()">Refresh</button>
+                </div>
+                <div id="fifteenDaySummary">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outstanding Payments -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Outstanding Payments by Restaurant</h3>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Restaurant</th>
+                                <th>Outstanding Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="outstandingPaymentsTable">
+                            <tr>
+                                <td colspan="3" class="loading">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+    <script src="/frontend/js/dashboard.js"></script>
+</body>
+</html>

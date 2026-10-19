@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Inventory</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card primary">
+                    <div class="stat-label">Total Products</div>
+                    <div class="stat-value" id="totalProducts">0</div>
+                </div>
+                <div class="stat-card secondary">
+                    <div class="stat-label">Total Stock Value</div>
+                    <div class="stat-value" id="totalStockValue">₹0</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-label">Low Stock Items</div>
+                    <div class="stat-value" id="lowStockItems">0</div>
+                </div>
+                <div class="stat-card highlight">
+                    <div class="stat-label">Expiring Soon</div>
+                    <div class="stat-value" id="expiringSoon">0</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('inventory')">Inventory</button>
+                <button class="tab" onclick="switchTab('movements')">Stock Movements</button>
+                <button class="tab" onclick="switchTab('batches')">Batches</button>
+            </div>
+
+            <!-- Inventory Tab -->
+            <div id="inventoryTab" class="tab-content active">
+                <div class="filter-bar">
+                    <input type="text" id="searchInput" class="form-input search-input" placeholder="Search inventory...">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="lowStockOnly">
+                        <span>Low Stock Only</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="expiringOnly">
+                        <span>Expiring Only</span>
+                    </label>
+                    <button class="btn btn-primary" onclick="openAdjustmentModal()">Stock Adjustment</button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Current Stock</th>
+                                    <th>Unit</th>
+                                    <th>Purchase Price</th>
+                                    <th>Selling Price</th>
+                                    <th>Stock Value</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTable">
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <div class="spinner"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock Movements Tab -->
+            <div id="movementsTab" class="tab-content">
+                <div class="filter-bar">
+                    <select id="movementTypeFilter" class="form-select filter-select">
+                        <option value="">All Types</option>
+                        <option value="purchase_received">Purchase Received</option>
+                        <option value="restaurant_sale">Restaurant Sale</option>
+                        <option value="retail_sale">Retail Sale</option>
+                        <option value="stock_adjustment_in">Stock Adjustment In</option>
+                        <option value="stock_adjustment_out">Stock Adjustment Out</option>
+                        <option value="damaged_stock">Damaged Stock</option>
+                        <option value="expired_stock">Expired Stock</option>
+                    </select>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Product</th>
+                                    <th>Type</th>
+                                    <th>Quantity</th>
+                                    <th>Balance After</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movementsTable">
+                                <tr>
+                                    <td colspan="6" class="loading">
+                                        <div class="spinner"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Batches Tab -->
+            <div id="batchesTab" class="tab-content">
+                <div class="filter-bar">
+                    <select id="batchStatusFilter" class="form-select filter-select">
+                        <option value="">All Status</option>
+                        <option value="normal">Normal</option>
+                        <option value="expiring_soon">Expiring Soon</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="openBatchModal()">Add Batch</button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Batch Number</th>
+                                    <th>Product</th>
+                                    <th>Vendor</th>
+                                    <th>Received Date</th>
+                                    <th>Quantity</th>
+                                    <th>Remaining</th>
+                                    <th>Expiry Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchesTable">
+                                <tr>
+                                    <td colspan="8" class="loading">
+                                        <div class="spinner"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Stock Adjustment Modal -->
+    <div class="modal" id="adjustmentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Stock Adjustment</h3>
+                <button class="modal-close" onclick="closeAdjustmentModal()">&times;</button>
+            </div>
+            <form id="adjustmentForm">
+                <div class="form-group">
+                    <label class="form-label">Product</label>
+                    <select id="adjustmentProduct" class="form-select" required>
+                        <option value="">Select Product</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Movement Type</label>
+                    <select id="adjustmentType" class="form-select" required>
+                        <option value="stock_adjustment_in">Stock Adjustment In (Add)</option>
+                        <option value="stock_adjustment_out">Stock Adjustment Out (Remove)</option>
+                        <option value="damaged_stock">Damaged Stock</option>
+                        <option value="expired_stock">Expired Stock</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" id="adjustmentQuantity" class="form-input" step="0.1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Unit</label>
+                    <input type="text" id="adjustmentUnit" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Rate (₹)</label>
+                    <input type="number" id="adjustmentRate" class="form-input" step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="adjustmentNotes" class="form-textarea"></textarea>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeAdjustmentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Adjustment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Batch Modal -->
+    <div class="modal" id="batchModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Batch</h3>
+                <button class="modal-close" onclick="closeBatchModal()">&times;</button>
+            </div>
+            <form id="batchForm">
+                <div class="form-group">
+                    <label class="form-label">Batch Number</label>
+                    <input type="text" id="batchNumber" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Product</label>
+                    <select id="batchProduct" class="form-select" required>
+                        <option value="">Select Product</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Vendor</label>
+                    <select id="batchVendor" class="form-select" required>
+                        <option value="">Select Vendor</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Purchase Date</label>
+                    <input type="date" id="batchPurchaseDate" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Received Date</label>
+                    <input type="date" id="batchReceivedDate" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" id="batchQuantity" class="form-input" step="0.1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Purchase Rate (₹)</label>
+                    <input type="number" id="batchPurchaseRate" class="form-input" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Manufacturing Date</label>
+                    <input type="date" id="batchManufacturingDate" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Expiry Date</label>
+                    <input type="date" id="batchExpiryDate" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Storage Location</label>
+                    <input type="text" id="batchStorageLocation" class="form-input">
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeBatchModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Batch</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+    <script src="/frontend/js/inventory.js"></script>
+</body>
+</html>

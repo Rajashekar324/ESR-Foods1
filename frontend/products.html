@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Products</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <input type="text" id="searchInput" class="form-input search-input" placeholder="Search products...">
+                <select id="categoryFilter" class="form-select filter-select">
+                    <option value="">All Categories</option>
+                </select>
+                <select id="seafoodTypeFilter" class="form-select filter-select">
+                    <option value="">All Types</option>
+                    <option value="fish">Fish</option>
+                    <option value="prawns">Prawns</option>
+                    <option value="shrimp">Shrimp</option>
+                    <option value="crab">Crab</option>
+                    <option value="squid">Squid</option>
+                    <option value="other">Other</option>
+                </select>
+                <select id="statusFilter" class="form-select filter-select">
+                    <option value="">All Status</option>
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+                <button class="btn btn-primary" onclick="openProductModal()">Add Product</button>
+            </div>
+
+            <!-- Products Table -->
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Type</th>
+                                <th>Stock</th>
+                                <th>Purchase Price</th>
+                                <th>Selling Price</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTable">
+                            <tr>
+                                <td colspan="9" class="loading">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Product Modal -->
+    <div class="modal" id="productModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="productModalTitle">Add Product</h3>
+                <button class="modal-close" onclick="closeProductModal()">&times;</button>
+            </div>
+            <form id="productForm">
+                <input type="hidden" id="productId">
+                
+                <div class="form-group">
+                    <label class="form-label">Product Code</label>
+                    <input type="text" id="productCode" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" id="productName" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label class="form-label" style="margin-bottom: 0;">Category</label>
+                        <button type="button" class="btn btn-sm btn-outline" style="padding: 2px 8px; font-size: 0.75rem;" onclick="openCategoryModal()">+ Add Category</button>
+                    </div>
+                    <select id="productCategory" class="form-select" required>
+                        <option value="">Select Category</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Seafood Type</label>
+                    <select id="productSeafoodType" class="form-select" required>
+                        <option value="fish">Fish</option>
+                        <option value="prawns">Prawns</option>
+                        <option value="shrimp">Shrimp</option>
+                        <option value="crab">Crab</option>
+                        <option value="squid">Squid</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Variety</label>
+                    <input type="text" id="productVariety" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Brand</label>
+                    <input type="text" id="productBrand" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Grade</label>
+                    <input type="text" id="productGrade" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Size Specifications</label>
+                    <input type="text" id="productSize" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Unit</label>
+                    <select id="productUnit" class="form-select" required>
+                        <option value="kg">Kilogram (kg)</option>
+                        <option value="gram">Gram</option>
+                        <option value="box">Box</option>
+                        <option value="packet">Packet</option>
+                        <option value="piece">Piece</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Weight per Packet</label>
+                    <input type="number" id="productWeightPerPacket" class="form-input" step="0.1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Packaging Type</label>
+                    <input type="text" id="productPackagingType" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Is Frozen</label>
+                    <select id="productIsFrozen" class="form-select">
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Purchase Price (₹)</label>
+                    <input type="number" id="productPurchasePrice" class="form-input" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Selling Price (₹)</label>
+                    <input type="number" id="productSellingPrice" class="form-input" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Wholesale Price (₹)</label>
+                    <input type="number" id="productWholesalePrice" class="form-input" step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Retail Price (₹)</label>
+                    <input type="number" id="productRetailPrice" class="form-input" step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Minimum Stock</label>
+                    <input type="number" id="productMinimumStock" class="form-input" step="0.1" value="10">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Maximum Stock</label>
+                    <input type="number" id="productMaximumStock" class="form-input" step="0.1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Reorder Level</label>
+                    <input type="number" id="productReorderLevel" class="form-input" step="0.1" value="20">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Storage Location</label>
+                    <input type="text" id="productStorageLocation" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="productDescription" class="form-textarea"></textarea>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeProductModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category Modal -->
+    <div class="modal" id="categoryModal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Add New Category</h3>
+                <button class="modal-close" onclick="closeCategoryModal()">&times;</button>
+            </div>
+            <form id="categoryForm">
+                <div class="form-group">
+                    <label class="form-label">Category Name</label>
+                    <input type="text" id="categoryName" class="form-input" placeholder="e.g. Shellfish" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (Optional)</label>
+                    <textarea id="categoryDescription" class="form-textarea" placeholder="Short description of this category"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeCategoryModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+    <script src="/frontend/js/products.js"></script>
+</body>
+</html>

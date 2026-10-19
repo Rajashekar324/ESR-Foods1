@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expenses - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Expenses</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <select id="categoryFilter" class="form-select filter-select">
+                    <option value="">All Categories</option>
+                    <option value="transport">Transport</option>
+                    <option value="utilities">Utilities</option>
+                    <option value="salaries">Salaries</option>
+                    <option value="rent">Rent</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="supplies">Supplies</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="date" id="startDate" class="form-input filter-select">
+                <input type="date" id="endDate" class="form-input filter-select">
+                <button class="btn btn-primary" onclick="openExpenseModal()">Add Expense</button>
+            </div>
+
+            <!-- Expenses Table -->
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Expense Code</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Payment Method</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expensesTable">
+                            <tr>
+                                <td colspan="7" class="loading">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Expense Modal -->
+    <div class="modal" id="expenseModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="expenseModalTitle">Add Expense</h3>
+                <button class="modal-close" onclick="closeExpenseModal()">&times;</button>
+            </div>
+            <form id="expenseForm">
+                <input type="hidden" id="expenseId">
+                
+                <div class="form-group">
+                    <label class="form-label">Expense Code</label>
+                    <input type="text" id="expenseCode" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select id="expenseCategory" class="form-select" required>
+                        <option value="transport">Transport</option>
+                        <option value="utilities">Utilities</option>
+                        <option value="salaries">Salaries</option>
+                        <option value="rent">Rent</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="supplies">Supplies</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" id="expenseDescription" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input type="date" id="expenseDate" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Amount (₹)</label>
+                    <input type="number" id="expenseAmount" class="form-input" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Payment Method</label>
+                    <select id="expensePaymentMethod" class="form-select">
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="card">Card</option>
+                        <option value="cheque">Cheque</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Reference Number</label>
+                    <input type="text" id="expenseReference" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="expenseNotes" class="form-textarea"></textarea>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeExpenseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+    <script src="/frontend/js/expenses.js"></script>
+</body>
+</html>

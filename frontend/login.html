@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <style>
+        /* Login-specific styles */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #063B5C 0%, #008C95 50%, #39C6B4 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated fish background */
+        .fish-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .fish {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 0.1;
+            animation: swim 20s linear infinite;
+        }
+
+        @keyframes swim {
+            0% {
+                transform: translateX(-100px) translateY(0);
+            }
+            25% {
+                transform: translateX(25vw) translateY(-20px);
+            }
+            50% {
+                transform: translateX(50vw) translateY(20px);
+            }
+            75% {
+                transform: translateX(75vw) translateY(-10px);
+            }
+            100% {
+                transform: translateX(calc(100vw + 100px)) translateY(0);
+            }
+        }
+
+        /* Bubbles animation */
+        .bubble {
+            position: absolute;
+            bottom: -20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: rise 10s infinite ease-in;
+        }
+
+        @keyframes rise {
+            0% {
+                bottom: -20px;
+                transform: translateX(0);
+            }
+            50% {
+                transform: translateX(20px);
+            }
+            100% {
+                bottom: 100vh;
+                transform: translateX(-20px);
+            }
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            z-index: 10;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #063B5C, #008C95);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2.5rem;
+        }
+
+        .login-title {
+            color: #063B5C;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .login-subtitle {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            color: #063B5C;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #008C95;
+            box-shadow: 0 0 0 3px rgba(0, 140, 149, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #063B5C, #008C95);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(6, 59, 92, 0.3);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .login-btn.loading .btn-text {
+            display: none;
+        }
+
+        .login-btn.loading .loading-spinner {
+            display: block;
+        }
+
+        .login-container {
+            background: radial-gradient(ellipse at 18% 18%, rgba(80, 205, 195, .22), transparent 34%),
+                        linear-gradient(135deg, #061d35 0%, #073c59 54%, #087e89 100%);
+        }
+
+        .login-card {
+            max-width: 440px;
+            padding: 42px;
+            border: 1px solid rgba(255, 255, 255, .72);
+        }
+
+        .login-logo {
+            border-radius: 22px;
+            box-shadow: 0 10px 24px rgba(6, 59, 92, .2);
+        }
+
+        .form-input { border-width: 1px; border-color: #dbe4eb; }
+        .form-input:focus { border-color: #078c91; }
+        .login-btn { background: linear-gradient(110deg, #073c59, #078c91); }
+        .fish { opacity: .055; }
+        .bubble { opacity: .45; }
+
+        .success-message {
+            display: none;
+            padding: 13px 15px;
+            margin-bottom: 18px;
+            border: 1px solid #a8dfd0;
+            border-radius: 9px;
+            color: #12614f;
+            background: #effaf6;
+            font-size: .92rem;
+            line-height: 1.5;
+        }
+        .success-message.show { display: block; }
+        .auth-links { display: flex; justify-content: center; margin-top: 15px; }
+        .auth-link {
+            border: 0; background: none; color: #087f87; cursor: pointer;
+            font: inherit; font-size: .9rem; text-decoration: none;
+        }
+        .auth-link:hover { color: #063b5c; text-decoration: underline; }
+        .password-note { color: #687985; font-size: .78rem; margin: -10px 0 16px; line-height: 1.45; }
+        .security-note { border-top: 1px solid #edf1f4; color: #75838c; font-size: .78rem; line-height: 1.5; margin-top: 24px; padding-top: 16px; text-align: center; }
+
+        @media (max-width: 520px) {
+            .login-card { width: calc(100% - 32px); padding: 28px 22px; box-sizing: border-box; }
+            .login-title { font-size: 1.55rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <!-- Animated fish background -->
+        <div class="fish-bg">
+            <div class="fish" style="left: 10%; animation-delay: 0s;">🐟</div>
+            <div class="fish" style="left: 30%; animation-delay: 5s;">🐠</div>
+            <div class="fish" style="left: 50%; animation-delay: 10s;">🐟</div>
+            <div class="fish" style="left: 70%; animation-delay: 15s;">🐡</div>
+            <div class="fish" style="left: 90%; animation-delay: 8s;">🐟</div>
+        </div>
+
+        <!-- Bubbles -->
+        <div class="bubble" style="left: 10%; width: 20px; height: 20px; animation-delay: 0s;"></div>
+        <div class="bubble" style="left: 30%; width: 30px; height: 30px; animation-delay: 2s;"></div>
+        <div class="bubble" style="left: 50%; width: 25px; height: 25px; animation-delay: 4s;"></div>
+        <div class="bubble" style="left: 70%; width: 35px; height: 35px; animation-delay: 6s;"></div>
+        <div class="bubble" style="left: 90%; width: 20px; height: 20px; animation-delay: 8s;"></div>
+
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">🦐</div>
+                <h1 class="login-title">ESR Foods</h1>
+                <p class="login-subtitle">Seafood Distribution & Supply</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <!-- Login Form -->
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label" for="username">Email or username</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        class="form-input" 
+                        placeholder="name@company.com or username"
+                        autocomplete="username"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        class="form-input" 
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="login-btn" id="loginBtn">
+                    <span class="btn-text">Sign In</span>
+                    <div class="loading-spinner"></div>
+                </button>
+            </form>
+
+            <div class="auth-links" id="forgotWrap">
+                <button type="button" class="auth-link" id="forgotPassword">Forgot password?</button>
+            </div>
+
+            <div class="success-message" id="successMessage" role="status" aria-live="polite"></div>
+
+            <!-- Register Form -->
+            <form id="registerForm" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="regUsername">Username</label>
+                    <input 
+                        type="text" 
+                        id="regUsername" 
+                        class="form-input" 
+                        placeholder="Choose a username"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regEmail">Email</label>
+                    <input 
+                        type="email" 
+                        id="regEmail" 
+                        class="form-input" 
+                        placeholder="Enter your email"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regFullName">Full Name</label>
+                    <input 
+                        type="text" 
+                        id="regFullName" 
+                        class="form-input" 
+                        placeholder="Enter your full name"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regPhone">Phone</label>
+                    <input 
+                        type="tel" 
+                        id="regPhone" 
+                        class="form-input" 
+                        placeholder="Enter your phone number"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regPassword">Password</label>
+                    <input 
+                        type="password" 
+                        id="regPassword" 
+                        class="form-input" 
+                        placeholder="Choose a password"
+                        minlength="12"
+                        autocomplete="new-password"
+                        required
+                    >
+                </div>
+                <p class="password-note">Use 12+ characters with uppercase and lowercase letters and a number.</p>
+
+                <div class="form-group">
+                    <label class="form-label" for="regConfirmPassword">Confirm Password</label>
+                    <input 
+                        type="password" 
+                        id="regConfirmPassword" 
+                        class="form-input" 
+                        placeholder="Confirm your password"
+                        autocomplete="new-password"
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="login-btn" id="registerBtn">
+                    <span class="btn-text">Register</span>
+                    <div class="loading-spinner"></div>
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 15px;">
+                <button type="button" class="btn-text" id="toggleAuth" style="background: none; border: none; color: #008C95; cursor: pointer; font-size: 0.9rem;">
+                    Don't have an account? Register
+                </button>
+            </div>
+
+            <p class="security-note">Authorized ESR Foods personnel only. New accounts remain pending until an administrator approves access.</p>
+        </div>
+    </div>
+
+    <script src="/frontend/js/api.js"></script>
+    <script src="/frontend/js/auth.js"></script>
+</body>
+</html>

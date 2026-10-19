@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchases - ESR Foods</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-logo">
+                    <span class="sidebar-logo-icon">🦐</span>
+                    <span>ESR Foods</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="dashboard.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="products.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🐟</span>
+                    <span>Products</span>
+                </a>
+                <a href="inventory.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📦</span>
+                    <span>Inventory</span>
+                </a>
+                <a href="vendors.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🏭</span>
+                    <span>Vendors</span>
+                </a>
+                <a href="purchases.html" class="sidebar-nav-item active">
+                    <span class="sidebar-nav-item-icon">🛒</span>
+                    <span>Purchases</span>
+                </a>
+                <a href="restaurants.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🍽️</span>
+                    <span>Restaurants</span>
+                </a>
+                <a href="customers.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👥</span>
+                    <span>Customers</span>
+                </a>
+                <a href="orders.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📋</span>
+                    <span>Orders</span>
+                </a>
+                <a href="invoices.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🧾</span>
+                    <span>Invoices</span>
+                </a>
+                <a href="payments.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💰</span>
+                    <span>Payments</span>
+                </a>
+                <a href="expenses.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">💸</span>
+                    <span>Expenses</span>
+                </a>
+                <a href="reports.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+                <a href="notifications.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">🔔</span>
+                    <span>Notifications</span>
+                </a>
+                <a href="users.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">👤</span>
+                    <span>Users</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item">
+                    <span class="sidebar-nav-item-icon">⚙️</span>
+                    <span>Settings</span>
+                </a>
+                <a href="#" class="sidebar-nav-item" onclick="logout()">
+                    <span class="sidebar-nav-item-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 class="header-title">Purchases</h1>
+                <div class="header-actions">
+                    <span id="userName" style="font-weight: 600; color: var(--text-secondary);"></span>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <select id="vendorFilter" class="form-select filter-select">
+                    <option value="">All Vendors</option>
+                </select>
+                <select id="statusFilter" class="form-select filter-select">
+                    <option value="">All Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="ordered">Ordered</option>
+                    <option value="partially_received">Partially Received</option>
+                    <option value="received">Received</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <button class="btn btn-primary" onclick="openPurchaseModal()">New Purchase</button>
+            </div>
+
+            <!-- Purchases Table -->
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Purchase Code</th>
+                                <th>Vendor</th>
+                                <th>Purchase Date</th>
+                                <th>Total</th>
+                                <th>Payment Status</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchasesTable">
+                            <tr>
+                                <td colspan="7" class="loading">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Purchase Modal -->
+    <div class="modal" id="purchaseModal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title" id="purchaseModalTitle">New Purchase</h3>
+                <button class="modal-close" onclick="closePurchaseModal()">&times;</button>
+            </div>
+            <form id="purchaseForm">
+                <input type="hidden" id="purchaseId">
+                
+                <div class="form-group">
+                    <label class="form-label">Purchase Code</label>
+                    <input type="text" id="purchaseCode" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Vendor</label>
+                    <select id="purchaseVendor" class="form-select" required>
+                        <option value="">Select Vendor</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Vendor Invoice Number</label>
+                    <input type="text" id="purchaseVendorInvoice" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Purchase Date</label>
+                    <input type="date" id="purchaseDate" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Expected Date</label>
+                    <input type="date" id="purchaseExpectedDate" class="form-input">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Discount (₹)</label>
+                    <input type="number" id="purchaseDiscount" class="form-input" step="0.01" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tax (₹)</label>
+                    <input type="number" id="purchaseTax" class="form-input" step="0.01" value="0">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="purchaseNotes" class="form-textarea"></textarea>
+                </div>
+                
+                <div style="margin: 20px 0; padding: 20px; background: var(--background-color); border-radius: var(--radius-md);">
+                    <h4 style="margin-bottom: 15px;">Purchase Items</h4>
+                    <div id="purchaseItems">
+                        <!-- Items will be added dynamically -->
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="addPurchaseItem()" style="margin-top: 10px;">+ Add Item</button>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closePurchaseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Purchase</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/frontend/js/api.js?v=1.1"></script>
+    <script src="/frontend/js/auth.js?v=1.1"></script>
+    <script src="/frontend/js/purchases.js?v=1.1"></script>
+</body>
+</html>
