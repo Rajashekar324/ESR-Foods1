@@ -9,11 +9,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(PROJECT_ROOT / ".env")
+logger = logging.getLogger(__name__)
 
 from backend.database import get_db, init_db
 from backend.auth.security import get_current_page_user, require_admin_page, require_manager_page
@@ -243,8 +245,20 @@ async def serve_settings():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
+    """Initialize schema and required baseline records on startup."""
     init_db()
+    from backend.seed_data import initialize_application_data
+    from backend.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        initialize_application_data(db)
+    except Exception:
+        db.rollback()
+        logger.exception("Application data bootstrap failed; refusing to start without required roles/Admin.")
+        raise
+    finally:
+        db.close()
 
 
 @app.get("/health")

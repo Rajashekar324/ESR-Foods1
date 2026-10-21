@@ -2,10 +2,21 @@
 Sales Orders router
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from io import BytesIO
+import re
+from uuid import uuid4
+from xml.sax.saxutils import escape
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from backend.database import get_db
 from backend.models.order import SalesOrder, SalesOrderItem, OrderStatus, CustomerType
 from backend.models.restaurant import Restaurant
@@ -13,7 +24,7 @@ from backend.models.customer import RetailCustomer
 from backend.models.product import Product
 from backend.models.stock_movement import StockMovement, MovementType
 from backend.models.user import User
-from backend.schemas.order import OrderCreate, OrderUpdate, OrderResponse, OrderItemCreate, OrderItemResponse
+from backend.schemas.order import OrderCreate, OrderUpdate, OrderResponse
 from backend.auth.security import get_current_active_user, require_manager_or_admin
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"], dependencies=[Depends(require_manager_or_admin())])
@@ -30,8 +41,8 @@ async def create_order(
     """
     order_code = order_data.order_code
     if not order_code:
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        order_code = f"SO-{timestamp}"
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        order_code = f"SO-{timestamp}-{uuid4().hex[:6].upper()}"
     elif db.query(SalesOrder).filter(SalesOrder.order_code == order_code).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -177,6 +188,113 @@ async def get_orders(
     
     orders = query.order_by(SalesOrder.order_date.desc()).offset(skip).limit(limit).all()
     return orders
+
+
+@router.get("/{order_id}/bill.pdf")
+async def download_order_bill(
+    order_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Download a printable PDF bill for a sales order."""
+    order = db.query(SalesOrder).filter(SalesOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    if order.customer_type == CustomerType.RESTAURANT:
+        customer = db.query(Restaurant).filter(Restaurant.id == order.restaurant_id).first()
+    else:
+        customer = db.query(RetailCustomer).filter(RetailCustomer.id == order.customer_id).first()
+    customer_name = escape(customer.name if customer else "Customer")
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=0.65 * inch,
+        leftMargin=0.65 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+        title=f"Bill {order.order_code}",
+        author="ESR Foods"
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "BillTitle", parent=styles["Title"], textColor=colors.HexColor("#17324d"),
+        alignment=TA_RIGHT, fontSize=20, leading=24
+    )
+    body_style = styles["BodyText"]
+    story = [
+        Table(
+            [[Paragraph("ESR FOODS", ParagraphStyle("Brand", parent=styles["Heading1"], textColor=colors.HexColor("#167a72"))),
+              Paragraph("SALES BILL", title_style)]],
+            colWidths=[3.5 * inch, 3.5 * inch]
+        ),
+        Spacer(1, 12),
+        Table([
+            [Paragraph(f"<b>Order:</b> {escape(order.order_code)}", body_style),
+             Paragraph(f"<b>Date:</b> {order.order_date.strftime('%d %b %Y')}", body_style)],
+            [Paragraph(f"<b>Bill to:</b> {customer_name}", body_style),
+             Paragraph(f"<b>Customer type:</b> {order.customer_type.value.title()}", body_style)],
+            [Paragraph(f"<b>Order status:</b> {order.order_status.value.title()}", body_style),
+             Paragraph(f"<b>Payment status:</b> {escape(order.payment_status or 'unpaid').title()}", body_style)]
+        ], colWidths=[3.5 * inch, 3.5 * inch]),
+        Spacer(1, 18)
+    ]
+
+    item_rows = [["Item", "Qty", "Unit", "Rate (Rs.)", "Tax (Rs.)", "Amount (Rs.)"]]
+    for item in order.items:
+        product_name = item.product.name if item.product else f"Product #{item.product_id}"
+        item_rows.append([
+            Paragraph(escape(product_name), body_style),
+            f"{item.quantity:g}",
+            escape(item.unit),
+            f"{item.selling_price:,.2f}",
+            f"{item.tax:,.2f}",
+            f"{item.total:,.2f}"
+        ])
+    items_table = Table(item_rows, colWidths=[2.55 * inch, 0.55 * inch, 0.55 * inch, 1.05 * inch, 0.9 * inch, 1.1 * inch], repeatRows=1)
+    items_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#17324d")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d9e1e8")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f4f7fa")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8)
+    ]))
+    story.append(items_table)
+    story.append(Spacer(1, 14))
+
+    totals_table = Table([
+        ["Subtotal", f"Rs. {order.subtotal:,.2f}"],
+        ["Discount", f"- Rs. {order.discount:,.2f}"],
+        ["Tax", f"Rs. {order.tax:,.2f}"],
+        [Paragraph("<b>Total due</b>", body_style), Paragraph(f"<b>Rs. {order.total:,.2f}</b>", body_style)]
+    ], colWidths=[1.8 * inch, 1.5 * inch], hAlign="RIGHT")
+    totals_table.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("LINEABOVE", (0, -1), (-1, -1), 1, colors.HexColor("#17324d")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6)
+    ]))
+    story.append(totals_table)
+    if order.notes:
+        story.extend([Spacer(1, 18), Paragraph(f"<b>Notes:</b> {escape(order.notes)}", body_style)])
+    story.extend([Spacer(1, 26), Paragraph("Thank you for your business.", styles["Italic"])])
+    document.build(story)
+
+    safe_order_code = re.sub(r"[^A-Za-z0-9_-]", "_", order.order_code)
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="bill-{safe_order_code}.pdf"'}
+    )
 
 
 @router.get("/{order_id}", response_model=OrderResponse)

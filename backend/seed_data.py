@@ -4,7 +4,7 @@ Run this to initialize the database with default roles and admin user
 """
 import sys
 import os
-import secrets
+import logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
@@ -13,6 +13,8 @@ from backend.models.user import User, Role
 from backend.models.setting import Setting
 from backend.models.product import Category
 from backend.auth.security import hash_password, verify_password
+
+logger = logging.getLogger(__name__)
 
 
 def validate_password(password: str) -> None:
@@ -45,7 +47,7 @@ def seed_categories(db: Session):
             db.add(cat)
             
     db.commit()
-    print("Categories seeded")
+    logger.info("Default product categories verified/seeded.")
 
 
 def seed_roles(db: Session):
@@ -65,59 +67,56 @@ def seed_roles(db: Session):
             existing_role.permissions = role.permissions
     
     db.commit()
-    print("Roles seeded")
+    logger.info("Default roles verified/seeded.")
 
 
 def seed_users(db: Session):
-    """Ensure one active Admin exists and securely bootstrap it if needed."""
+    """Create or reconcile the single configured bootstrap Admin account."""
     admin_role = db.query(Role).filter(Role.name == "admin").first()
-    username = os.getenv("ESR_ADMIN_USERNAME", "admin")
-    active_admin = db.query(User).join(Role).filter(
-        Role.name == "admin", User.is_active.is_(True), User.approval_status == "approved"
-    ).first()
-    if active_admin:
-        configured_password = os.getenv("ESR_ADMIN_PASSWORD")
-        if active_admin.username == username and configured_password:
-            validate_password(configured_password)
-            if verify_password("admin123", active_admin.hashed_password) and not verify_password(configured_password, active_admin.hashed_password):
-                active_admin.hashed_password = hash_password(configured_password)
-                active_admin.token_version += 1
-                db.commit()
-                print("Legacy default Admin password replaced with ESR_ADMIN_PASSWORD.")
-                return None
-        if active_admin.username == username and configured_password and not verify_password(configured_password, active_admin.hashed_password):
-            active_admin.hashed_password = hash_password(configured_password)
-            active_admin.token_version += 1
-            db.commit()
-            print("Active Admin password updated from ESR_ADMIN_PASSWORD.")
-            return None
-        if active_admin.username == username and verify_password("admin123", active_admin.hashed_password):
-            password = secrets.token_urlsafe(24) + "A9!"
-            active_admin.hashed_password = hash_password(password)
-            active_admin.token_version += 1
-            db.commit()
-            print("Legacy default Admin password has been rotated.")
-            return password
-        print("An active Admin account already exists; credentials were not changed.")
-        return None
+    if not admin_role:
+        raise RuntimeError("Admin role is missing; seed roles before creating the bootstrap Admin.")
 
-    existing_user = db.query(User).filter(User.username == username).first()
-    if existing_user:
-        if existing_user.role.name != "admin":
-            raise RuntimeError("Configured ESR_ADMIN_USERNAME belongs to a non-admin account.")
-        existing_user.is_active = True
-        existing_user.approval_status = "approved"
-        existing_user.token_version += 1
-        db.commit()
-        print("Existing administrator account re-enabled; password was not changed.")
-        return None
-
-    configured_password = os.getenv("ESR_ADMIN_PASSWORD")
-    password = configured_password or (secrets.token_urlsafe(24) + "A9!")
+    username = os.getenv("ADMIN_USERNAME") or os.getenv("ESR_ADMIN_USERNAME", "admin")
+    email = os.getenv("ADMIN_EMAIL") or os.getenv("ESR_ADMIN_EMAIL", "admin@esrfoods.com")
+    password = os.getenv("ADMIN_PASSWORD") or os.getenv("ESR_ADMIN_PASSWORD")
+    if not password:
+        raise RuntimeError("Set ADMIN_EMAIL and ADMIN_PASSWORD in the deployment environment to bootstrap the Admin account.")
     validate_password(password)
+
+    by_username = db.query(User).filter(User.username == username).first()
+    by_email = db.query(User).filter(User.email == email).first()
+    if by_username and by_email and by_username.id != by_email.id:
+        raise RuntimeError("ADMIN_USERNAME and ADMIN_EMAIL belong to different existing accounts.")
+
+    admin_user = by_username or by_email
+    if admin_user and admin_user.role_id != admin_role.id:
+        raise RuntimeError("Configured Admin username/email belongs to a non-admin account.")
+
+    # Reuse an existing administrator if the configured identifiers changed;
+    # never create a second bootstrap Admin on redeploy.
+    if not admin_user:
+        admin_user = db.query(User).filter(User.role_id == admin_role.id).order_by(User.id).first()
+
+    if admin_user:
+        conflicting_email = db.query(User).filter(User.email == email, User.id != admin_user.id).first()
+        if conflicting_email:
+            raise RuntimeError("ADMIN_EMAIL is already assigned to a different account.")
+        admin_user.email = email
+        admin_user.is_active = True
+        admin_user.approval_status = "approved"
+        changed_password = not verify_password(password, admin_user.hashed_password)
+        if changed_password:
+            admin_user.hashed_password = hash_password(password)
+            admin_user.token_version += 1
+            admin_user.failed_login_attempts = 0
+            admin_user.locked_until = None
+        db.commit()
+        logger.info("Bootstrap Admin reconciled (user_id=%s, password_updated=%s).", admin_user.id, changed_password)
+        return
+
     db.add(User(
         username=username,
-        email=os.getenv("ESR_ADMIN_EMAIL", "admin@esrfoods.com"),
+        email=email,
         hashed_password=hash_password(password),
         full_name="System Administrator",
         role_id=admin_role.id,
@@ -125,8 +124,15 @@ def seed_users(db: Session):
         approval_status="approved"
     ))
     db.commit()
-    print("Admin user seeded")
-    return password if not configured_password else None
+    logger.info("Bootstrap Admin account created (username=%s).", username)
+
+
+def initialize_application_data(db: Session) -> None:
+    """Seed roles and baseline records at application startup, idempotently."""
+    seed_roles(db)
+    seed_users(db)
+    seed_settings(db)
+    seed_categories(db)
 
 
 def seed_settings(db: Session):
@@ -150,7 +156,7 @@ def seed_settings(db: Session):
             db.add(setting)
     
     db.commit()
-    print("Settings seeded")
+    logger.info("Default application settings verified/seeded.")
 
 
 def main():
@@ -163,15 +169,12 @@ def main():
     db = SessionLocal()
     try:
         seed_roles(db)
-        generated_admin_password = seed_users(db)
+        seed_users(db)
         seed_settings(db)
         seed_categories(db)
         
         print("\nDatabase initialization completed successfully!")
-        print("\nAdministrator login:")
-        print(f"  Username: {os.getenv('ESR_ADMIN_USERNAME', 'admin')}")
-        if generated_admin_password:
-            print(f"  One-time generated password: {generated_admin_password}")
+        print("\nAdministrator credentials are read from ADMIN_EMAIL and ADMIN_PASSWORD (or legacy ESR_ADMIN_* variables).")
         print("\nNote: All other data (products, vendors, restaurants, etc.) should be added through the application interface.")
         
     except Exception as e:

@@ -76,9 +76,9 @@ A comprehensive ERP + CRM + Inventory + Billing + Restaurant Management System f
    SECRET_KEY=generate-a-unique-random-secret-of-at-least-32-characters
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=1440
-   ESR_ADMIN_USERNAME=admin
-   ESR_ADMIN_EMAIL=admin@esrfoods.com
-   ESR_ADMIN_PASSWORD=
+   ADMIN_USERNAME=admin
+   ADMIN_EMAIL=admin@esrfoods.com
+   ADMIN_PASSWORD=choose-a-strong-private-password
    ```
 
 6. **Initialize the database with seed data**
@@ -87,17 +87,34 @@ A comprehensive ERP + CRM + Inventory + Billing + Restaurant Management System f
    python backend/seed_data.py
    ```
 
-   This will create the database and populate it with:
+   Application startup now initializes the schema and required seed records automatically. This command remains available for manual initialization and populates the database with:
    - Admin, Manager, and Staff roles
-   - A single active Admin account (a one-time strong password is generated and printed if ESR_ADMIN_PASSWORD is empty)
+   - A single active, approved Admin account, with its password hashed using the same bcrypt context as registration
    - 9 seafood product categories
    - Default settings
 
    Product, vendor, restaurant, customer, purchase, and invoice data must be entered in the application; the seed script does not create sample business records. The SQLite path above is resolved from the project directory even when the app is launched from a different working directory.
 
-   Set `ESR_ADMIN_PASSWORD` in `.env` to choose the bootstrap password, or securely save the one-time generated password printed by the seed script. Manager and Staff accounts are created by an Admin or through registration and require Admin approval.
+   Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` for the bootstrap Admin. Existing `ESR_ADMIN_*` variables are still accepted for local compatibility. The seed operation is idempotent: it reuses the existing Admin and reconciles its email/password without creating a duplicate or deleting business data. Manager and Staff accounts are created by an Admin or through registration and require Admin approval.
 
-   Keep `DATABASE_URL` set to `sqlite:///esr_foods.db` unless you intentionally want a different database. Relative SQLite paths resolve from the project directory, not the shell's current directory. If Admin sign-in fails, check that `.env` is present in the project root, verify `ESR_ADMIN_USERNAME`, and rerun the seed command with a strong `ESR_ADMIN_PASSWORD`; it updates that Admin account without clearing business records.
+   Keep `DATABASE_URL` set to `sqlite:///esr_foods.db` locally unless you intentionally want a different database. Relative SQLite paths resolve from the project directory, not the shell's current directory. If Admin sign-in fails, check that `.env` is present in the project root and verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` (legacy `ESR_ADMIN_*` names are also supported). Rerun the seed command to reconcile the Admin password without clearing business records.
+
+## Deploying to Render
+
+1. Create a Render **Web Service** connected to this GitHub repository. Use `pip install -r requirements.txt` as the build command and `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` as the start command.
+2. Attach a **persistent disk** to the service mounted at `/var/data` (SQLite on Render's ephemeral filesystem can be lost on restart/redeploy; persistent disks require a Render plan that supports disks).
+3. Add these Render environment variables:
+   - `DATABASE_URL` = `sqlite:////var/data/esr_foods.db`
+   - `ADMIN_EMAIL` = the Admin email you will enter at login
+   - `ADMIN_PASSWORD` = a unique strong password (at least 12 characters with uppercase, lowercase, and a number; do not commit it)
+   - `ADMIN_USERNAME` = `admin` (optional; defaults to `admin`)
+   - `SECRET_KEY` = generate a unique random value of at least 32 characters in Render; do not reuse the example value
+   - `COOKIE_SECURE` = `true`
+   - `ALLOWED_ORIGINS` = the exact deployed origin, for example `https://your-service-name.onrender.com`
+4. Deploy. On each start, the app creates/migrates tables, seeds roles/settings/categories, and creates or reconciles the bootstrap Admin. It logs the resolved SQLite path and authentication failure reason, never passwords.
+5. Visit `https://your-service-name.onrender.com/`, sign in using `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and confirm the dashboard loads. A successful login sets an HttpOnly secure session cookie.
+
+Do **not** delete or recreate an existing SQLite database to fix credentials. The startup bootstrap reuses the existing Admin, updates its password hash from `ADMIN_PASSWORD` when necessary, and preserves business records. Check Render logs for the reported SQLite path: it should be `/var/data/esr_foods.db`.
 
 ## Running the Application
 

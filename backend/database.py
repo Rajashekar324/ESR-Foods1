@@ -7,20 +7,33 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import logging
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(PROJECT_ROOT / ".env")
+logger = logging.getLogger(__name__)
 
-# Resolve relative SQLite paths against the project root, not the launch directory.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///esr_foods.db")
+# Keep local databases beside the project. Render's filesystem is ephemeral unless
+# a persistent disk is mounted, so resolve relative SQLite URLs under that disk.
+is_render = os.getenv("RENDER", "").lower() in {"1", "true", "yes"} or bool(os.getenv("RENDER_SERVICE_ID"))
+render_data_dir = Path(os.getenv("RENDER_DISK_PATH", "/var/data"))
+default_database_url = (
+    f"sqlite:///{render_data_dir / 'esr_foods.db'}"
+    if is_render
+    else "sqlite:///esr_foods.db"
+)
+DATABASE_URL = os.getenv("DATABASE_URL", default_database_url)
 database_url = make_url(DATABASE_URL)
 if database_url.get_backend_name() == "sqlite" and database_url.database not in (None, ":memory:"):
     database_path = Path(database_url.database)
     if not database_path.is_absolute():
-        database_path = PROJECT_ROOT / database_path
+        database_path = (render_data_dir if is_render else PROJECT_ROOT) / database_path
     database_path.parent.mkdir(parents=True, exist_ok=True)
     database_url = database_url.set(database=str(database_path.resolve()))
+    SQLITE_DATABASE_PATH = str(database_path.resolve())
+else:
+    SQLITE_DATABASE_PATH = None
 DATABASE_URL = database_url.render_as_string(hide_password=False)
 
 # Create engine
@@ -57,10 +70,10 @@ def init_db():
         purchase, order, invoice, payment, expense,
         batch, stock_movement, notification, audit_log, setting
     )
-    Base.metadata.create_all(bind=engine)
-    
-    # Auto migrate sqlite columns if missing
     try:
+        Base.metadata.create_all(bind=engine)
+
+        # Auto migrate sqlite columns if missing
         with engine.connect() as conn:
             # Check payments table columns
             existing_cols = {column["name"] for column in inspect(engine).get_columns("payments")}
@@ -118,5 +131,12 @@ def init_db():
                 """))
             conn.commit()
     except Exception as exc:
+        logger.exception("Database initialization/migration failed (sqlite_path=%s).", SQLITE_DATABASE_PATH)
         raise RuntimeError("Database schema migration failed; startup cannot safely continue.") from exc
+
+    logger.info(
+        "Database schema initialized (dialect=%s, sqlite_path=%s).",
+        database_url.get_backend_name(),
+        SQLITE_DATABASE_PATH or "not applicable",
+    )
 

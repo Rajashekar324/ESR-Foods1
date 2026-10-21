@@ -14,9 +14,11 @@ from backend.auth.security import (
 from typing import List
 from backend.models.audit_log import AuditLog
 import os
+import logging
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
-LOGIN_LOCKOUT_MINUTES = 0
+LOGIN_LOCKOUT_MINUTES = 15
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -79,19 +81,39 @@ async def login(credentials: UserLogin, request: Request, response: Response, db
     if locked_until and locked_until.tzinfo is None:
         locked_until = locked_until.replace(tzinfo=timezone.utc)
     if locked_until and locked_until > now:
+        logger.warning(
+            "Authentication failed (reason=account_locked, user_id=%s, client_ip=%s).",
+            user.id,
+            request.client.host if request.client else "unknown",
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Too many failed attempts. Try again in {LOGIN_LOCKOUT_MINUTES} minutes.",
         )
 
-    if not user or not verify_password(credentials.password, user.hashed_password):
-        if user:
-            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-            if user.failed_login_attempts >= 5:
-                user.failed_login_attempts = 0
-                user.locked_until = now + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
-            db.add(AuditLog(user_id=user.id, action="login_failed", module="auth", ip_address=request.client.host if request.client else None))
-            db.commit()
+    if not user:
+        logger.warning(
+            "Authentication failed (reason=unknown_account, client_ip=%s).",
+            request.client.host if request.client else "unknown",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not verify_password(credentials.password, user.hashed_password):
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= 5:
+            user.failed_login_attempts = 0
+            user.locked_until = now + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+        db.add(AuditLog(user_id=user.id, action="login_failed", module="auth", ip_address=request.client.host if request.client else None))
+        db.commit()
+        logger.warning(
+            "Authentication failed (reason=password_mismatch, user_id=%s, client_ip=%s).",
+            user.id,
+            request.client.host if request.client else "unknown",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -99,10 +121,13 @@ async def login(credentials: UserLogin, request: Request, response: Response, db
         )
     
     if user.approval_status == "pending":
+        logger.warning("Authentication denied (reason=pending_approval, user_id=%s).", user.id)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your registration is awaiting Admin approval.")
     if user.approval_status == "rejected":
+        logger.warning("Authentication denied (reason=registration_rejected, user_id=%s).", user.id)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your registration was not approved. Contact your administrator.")
     if user.approval_status == "disabled" or not user.is_active:
+        logger.warning("Authentication denied (reason=account_disabled, user_id=%s).", user.id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account has been disabled. Contact your administrator."

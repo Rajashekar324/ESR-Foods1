@@ -137,6 +137,7 @@ function renderOrdersTable(orders) {
                 </td>
                 <td>
                     <button class="btn btn-sm btn-outline" onclick="viewOrder(${order.id})">View</button>
+                    <button class="btn btn-sm btn-primary" onclick="downloadOrderBill(${order.id})">Get bill PDF</button>
                     ${order.order_status === 'confirmed' || order.order_status === 'processing' || order.order_status === 'packed' ? `
                         <button class="btn btn-sm btn-accent" onclick="completeOrder(${order.id})">Complete</button>
                     ` : ''}
@@ -229,13 +230,24 @@ function openOrderModal(order = null) {
     } else {
         title.textContent = 'New Order';
         // Auto generate order code
-        const dateStr = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-        document.getElementById('orderCode').value = `SO-${dateStr}`;
+        const dateStr = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 17);
+        const uniqueSuffix = Math.random().toString(36).slice(2, 7).toUpperCase();
+        document.getElementById('orderCode').value = `SO-${dateStr}-${uniqueSuffix}`;
         // Add one empty item row
         addOrderItem();
     }
     
     modal.classList.add('show');
+}
+
+// Download a printable bill for an order
+function downloadOrderBill(id) {
+    const link = document.createElement('a');
+    link.href = `/api/orders/${id}/bill.pdf`;
+    link.download = `bill-order-${id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 }
 
 // Close order modal
@@ -259,7 +271,7 @@ function addOrderItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-input item-quantity" step="0.1" required placeholder="0.0">
+                <input type="number" class="form-input item-quantity" step="0.1" min="0.1" required placeholder="0.0">
             </div>
             <div>
                 <label class="form-label">Unit</label>
@@ -267,7 +279,7 @@ function addOrderItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Selling Price</label>
-                <input type="number" class="form-input item-selling-price" step="0.01" required placeholder="0.00">
+                <input type="number" class="form-input item-selling-price" step="0.01" min="0.01" required placeholder="0.00">
             </div>
             <div>
                 <label class="form-label">Total</label>
@@ -419,21 +431,15 @@ async function handleOrderSubmit(event) {
         const selling_price = parseFloat(itemRow.querySelector('.item-selling-price').value);
         const total = parseFloat(itemRow.querySelector('.item-total').value);
         
-        if (product_id && quantity && unit && selling_price) {
-            items.push({
-                product_id,
-                quantity,
-                unit,
-                selling_price,
-                discount: 0,
-                tax: 0,
-                total
-            });
+        if (!product_id || !Number.isFinite(quantity) || quantity <= 0 || !unit.trim() ||
+            !Number.isFinite(selling_price) || selling_price <= 0 || !Number.isFinite(total)) {
+            return;
         }
+        items.push({ product_id, quantity, unit: unit.trim(), selling_price, discount: 0, tax: 0, total });
     });
     
-    if (items.length === 0) {
-        showToast('Please add at least one valid item with product, quantity, unit, and price', 'error');
+    if (items.length === 0 || items.length !== document.querySelectorAll('.order-item').length) {
+        showToast('Complete every order item with a product, positive quantity, unit, and price', 'error');
         return;
     }
     
@@ -450,6 +456,8 @@ async function handleOrderSubmit(event) {
         items: items
     };
     
+    const submitButton = document.querySelector('#orderForm button[type="submit"]');
+    submitButton.disabled = true;
     try {
         if (orderId) {
             // Update existing order
@@ -458,7 +466,9 @@ async function handleOrderSubmit(event) {
         } else {
             // Create new order
             await ordersAPI.create(orderData);
-            showToast('Order created successfully and invoice generated for restaurant!', 'success');
+            showToast(customerType === 'restaurant'
+                ? 'Order placed successfully. Restaurant invoice generated; PDF bill is available in the order list.'
+                : 'Order placed successfully. PDF bill is available in the order list.', 'success');
         }
         
         closeOrderModal();
@@ -466,6 +476,8 @@ async function handleOrderSubmit(event) {
     } catch (error) {
         console.error('Error saving order:', error);
         showToast('Failed to save order: ' + (error.message || 'Server error'), 'error');
+    } finally {
+        submitButton.disabled = false;
     }
 }
 

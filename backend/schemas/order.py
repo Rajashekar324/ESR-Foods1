@@ -62,7 +62,7 @@ class OrderCreate(BaseModel):
     discount: float = 0
     tax: float = 0
     notes: Optional[str] = None
-    items: List[OrderItemCreate]
+    items: List[OrderItemCreate] = Field(..., min_length=1)
 
 
 class OrderUpdate(BaseModel):
