@@ -67,7 +67,11 @@ async def create_order(
     
     # Calculate totals
     subtotal = 0
+    item_discounts = 0
+    item_taxes = 0
     for item_data in order_data.items:
+        if item_data.discount > item_data.quantity * item_data.selling_price:
+            raise HTTPException(status_code=400, detail="An order line discount cannot exceed its line subtotal")
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product:
             raise HTTPException(
@@ -76,10 +80,16 @@ async def create_order(
             )
         
         subtotal += item_data.quantity * item_data.selling_price
+        item_discounts += item_data.discount
+        item_taxes += item_data.tax
     
     discount = order_data.discount
     tax = order_data.tax
-    total = subtotal - discount + tax
+    if item_discounts + discount > subtotal:
+        raise HTTPException(status_code=400, detail="Total discounts cannot exceed the order subtotal")
+    total = subtotal - item_discounts - discount + item_taxes + tax
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="Order total must be greater than zero")
     
     # Create order
     new_order = SalesOrder(

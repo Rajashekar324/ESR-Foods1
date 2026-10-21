@@ -8,7 +8,7 @@ from typing import List, Optional
 from backend.database import get_db
 from backend.models.user import User, Role
 from backend.models.audit_log import AuditLog
-from backend.schemas.user import UserCreate, UserResponse
+from backend.schemas.user import UserCreate, UserResponse, RoleAssignment
 from backend.auth.security import hash_password, require_admin
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
@@ -133,6 +133,7 @@ def ensure_another_active_admin(db: Session, user: User):
 @router.put("/{user_id}/approve")
 async def approve_user(
     user_id: int,
+    role_assignment: RoleAssignment,
     current_user: User = Depends(require_admin()),
     db: Session = Depends(get_db)
 ):
@@ -141,11 +142,55 @@ async def approve_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if user.approval_status == "disabled":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Disabled accounts must be re-enabled explicitly.")
+    role = db.query(Role).filter(Role.id == role_assignment.role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if user.role_id != role.id:
+        previous_role = user.role.name if user.role else str(user.role_id)
+        user.role_id = role.id
+        user.token_version += 1
+        db.add(AuditLog(user_id=current_user.id, action="user_role_changed", module="users", record_id=user.id, previous_value=previous_role, new_value=role.name))
     user.approval_status = "approved"
     user.is_active = True
-    db.add(AuditLog(user_id=current_user.id, action="user_approved", module="users", record_id=user.id, new_value="approved"))
-    db.commit()
+    db.add(AuditLog(user_id=current_user.id, action="user_approved", module="users", record_id=user.id, new_value=f"approved; role={role.name}"))
+    commit_user_status(db)
     return {"message": "User approved successfully"}
+
+
+@router.put("/{user_id}/role", response_model=UserResponse)
+async def update_user_role(
+    user_id: int,
+    role_assignment: RoleAssignment,
+    current_user: User = Depends(require_admin()),
+    db: Session = Depends(get_db)
+):
+    """Change a user's role and revoke existing sessions so new permissions apply."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    role = db.query(Role).filter(Role.id == role_assignment.role_id).first()
+    if not role:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if user.id == current_user.id and user.role_id != role.id:
+        raise HTTPException(status_code=400, detail="You cannot change your own administrator role.")
+    if user.role_id == role.id:
+        return user
+
+    previous_role = user.role.name if user.role else str(user.role_id)
+    ensure_another_active_admin(db, user)
+    user.role_id = role.id
+    user.token_version += 1
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="user_role_changed",
+        module="users",
+        record_id=user.id,
+        previous_value=previous_role,
+        new_value=role.name
+    ))
+    commit_user_status(db)
+    db.refresh(user)
+    return user
 
 
 @router.put("/{user_id}/reject")

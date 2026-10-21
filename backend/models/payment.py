@@ -42,6 +42,7 @@ class Payment(Base):
     expense_id = Column(Integer, ForeignKey("expenses.id"), nullable=True)
     restaurant_id = Column(Integer, ForeignKey("restaurants.id"), nullable=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id"), nullable=True)
+    customer_id = Column(Integer, ForeignKey("retail_customers.id"), nullable=True)
     amount = Column(Float, nullable=False)
     payment_method = Column(SQLEnum(PaymentMethod), nullable=False)
     status = Column(String(20), default="completed", nullable=False)

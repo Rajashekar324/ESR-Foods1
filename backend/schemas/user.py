@@ -29,7 +29,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=12, max_length=128)
     full_name: Optional[str] = None
     phone: Optional[str] = None
-    role_id: Optional[int] = None
+    role_id: int = Field(..., gt=0)
 
     @field_validator("password")
     @classmethod
@@ -43,6 +43,10 @@ class UserCreate(BaseModel):
         if not any(char.isdigit() for char in value):
             raise ValueError("Password must contain a number")
         return value
+
+
+class RoleAssignment(BaseModel):
+    role_id: int = Field(..., gt=0)
 
 
 class UserLogin(BaseModel):

@@ -96,7 +96,7 @@ async function loadInvoices() {
         renderInvoicesTable(invoices);
     } catch (error) {
         console.error('Error loading invoices:', error);
-        document.getElementById('invoicesTable').innerHTML = '<tr><td colspan="9" style="color: var(--danger-color);">Failed to load invoices</td></tr>';
+        document.getElementById('invoicesTable').innerHTML = '<tr><td colspan="10" style="color: var(--danger-color);">Failed to load invoices</td></tr>';
     }
 }
 
@@ -105,7 +105,7 @@ function renderInvoicesTable(invoices) {
     const tbody = document.getElementById('invoicesTable');
     
     if (!invoices || invoices.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-state-icon">🧾</div><div class="empty-state-text">No invoices found</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><div class="empty-state-icon">🧾</div><div class="empty-state-text">No invoices found</div></td></tr>';
         return;
     }
     
@@ -117,6 +117,7 @@ function renderInvoicesTable(invoices) {
             <td><strong>${invoice.invoice_number}</strong></td>
             <td>${restaurantNames[invoice.restaurant_id] || 'Unknown'}</td>
             <td>${formatDate(invoice.invoice_date)}</td>
+            <td>${formatDate(invoice.due_date)}</td>
             <td>${formatCurrency(invoice.grand_total)}</td>
             <td>${formatCurrency(invoice.amount_paid)}</td>
             <td style="color: ${invoice.balance_due > 0 ? 'var(--danger-color)' : 'var(--success-color)'}; font-weight: 600;">
@@ -129,12 +130,13 @@ function renderInvoicesTable(invoices) {
                 </span>
             </td>
             <td>
+                <button class="btn btn-sm btn-outline" onclick="downloadInvoicePdf(${invoice.id})">PDF</button>
                 <button class="btn btn-sm btn-outline" onclick="viewInvoice(${invoice.id})">View</button>
                 ${!invoice.is_finalized ? `
                     <button class="btn btn-sm btn-secondary" onclick="editInvoice(${invoice.id})">Edit</button>
                     <button class="btn btn-sm btn-accent" onclick="finalizeInvoice(${invoice.id})">Finalize</button>
                 ` : ''}
-                <button class="btn btn-sm btn-danger" onclick="deleteInvoice(${invoice.id})">Delete</button>
+                ${!invoice.is_finalized ? `<button class="btn btn-sm btn-danger" onclick="deleteInvoice(${invoice.id})">Delete Draft</button>` : ''}
             </td>
         </tr>
     `).join('');
@@ -152,13 +154,17 @@ function setupEventListeners() {
 }
 
 // Open invoice modal
-function openInvoiceModal(invoice = null) {
+function openInvoiceModal(invoice = null, readOnly = false) {
     const modal = document.getElementById('invoiceModal');
     const title = document.getElementById('invoiceModalTitle');
     const form = document.getElementById('invoiceForm');
     
     // Reset form
     form.reset();
+    form.querySelectorAll('input, select, textarea, button').forEach(control => {
+        control.disabled = false;
+        control.hidden = false;
+    });
     document.getElementById('invoiceId').value = '';
     document.getElementById('invoiceItems').innerHTML = '';
     invoiceItemCount = 0;
@@ -167,13 +173,8 @@ function openInvoiceModal(invoice = null) {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('invoiceDate').value = today;
     
-    // Set default due date (30 days)
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    document.getElementById('invoiceDueDate').value = dueDate.toISOString().split('T')[0];
-    
     if (invoice) {
-        title.textContent = 'Edit Invoice';
+        title.textContent = readOnly ? 'Invoice Details' : 'Edit Draft Invoice';
         
         // Populate form with invoice data
         document.getElementById('invoiceId').value = invoice.id;
@@ -192,11 +193,18 @@ function openInvoiceModal(invoice = null) {
                 addInvoiceItem(item);
             });
         }
+        document.getElementById('invoiceNumber').disabled = true;
+        if (readOnly) {
+            form.querySelectorAll('input, select, textarea, button[type="submit"]').forEach(control => { control.disabled = true; });
+            form.querySelectorAll('button[onclick^="removeInvoiceItem"], button[onclick="addInvoiceItem()"]').forEach(control => { control.hidden = true; });
+        }
     } else {
         title.textContent = 'New Invoice';
         // Add one empty item row
         addInvoiceItem();
     }
+
+        if (!invoice) document.getElementById('invoiceNumber').disabled = false;
     
     modal.classList.add('show');
 }
@@ -212,7 +220,7 @@ function addInvoiceItem(itemData = null) {
     const itemIndex = invoiceItemCount;
     
     const itemHtml = `
-        <div class="invoice-item" data-index="${itemIndex}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="invoice-item" data-index="${itemIndex}" style="display: grid; grid-template-columns: 2fr .7fr .8fr .9fr .9fr .9fr .9fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -222,7 +230,7 @@ function addInvoiceItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-input item-quantity" step="0.1" required>
+                <input type="number" class="form-input item-quantity" step="0.1" min="0.01" required>
             </div>
             <div>
                 <label class="form-label">Unit</label>
@@ -230,10 +238,18 @@ function addInvoiceItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Rate</label>
-                <input type="number" class="form-input item-rate" step="0.01" required>
+                <input type="number" class="form-input item-rate" step="0.01" min="0.01" required>
             </div>
             <div>
-                <label class="form-label">Amount</label>
+                <label class="form-label">Discount</label>
+                <input type="number" class="form-input item-discount" step="0.01" min="0" value="0">
+            </div>
+            <div>
+                <label class="form-label">Tax</label>
+                <input type="number" class="form-input item-tax" step="0.01" min="0" value="0">
+            </div>
+            <div>
+                <label class="form-label">Line Total</label>
                 <input type="number" class="form-input item-amount" step="0.01" readonly>
             </div>
             <button type="button" class="btn btn-sm btn-danger" onclick="removeInvoiceItem(${itemIndex})">×</button>
@@ -249,22 +265,30 @@ function addInvoiceItem(itemData = null) {
         itemRow.querySelector('.item-quantity').value = itemData.quantity;
         itemRow.querySelector('.item-unit').value = itemData.unit;
         itemRow.querySelector('.item-rate').value = itemData.rate;
+        itemRow.querySelector('.item-discount').value = itemData.discount || 0;
+        itemRow.querySelector('.item-tax').value = itemData.tax || 0;
         itemRow.querySelector('.item-amount').value = itemData.amount;
     }
     
     // Add event listeners for auto-calculation
     const quantityInput = itemRow.querySelector('.item-quantity');
     const rateInput = itemRow.querySelector('.item-rate');
+    const discountInput = itemRow.querySelector('.item-discount');
+    const taxInput = itemRow.querySelector('.item-tax');
     const amountInput = itemRow.querySelector('.item-amount');
     
     const calculateAmount = () => {
         const quantity = parseFloat(quantityInput.value) || 0;
         const rate = parseFloat(rateInput.value) || 0;
-        amountInput.value = (quantity * rate).toFixed(2);
+        const discount = parseFloat(discountInput.value) || 0;
+        const tax = parseFloat(taxInput.value) || 0;
+        amountInput.value = (quantity * rate - discount + tax).toFixed(2);
     };
     
     quantityInput.addEventListener('input', calculateAmount);
     rateInput.addEventListener('input', calculateAmount);
+    discountInput.addEventListener('input', calculateAmount);
+    taxInput.addEventListener('input', calculateAmount);
 }
 
 // Remove invoice item
@@ -280,12 +304,16 @@ async function viewInvoice(id) {
     try {
         const invoice = await invoicesAPI.getById(id);
         if (invoice) {
-            openInvoiceModal(invoice);
+            openInvoiceModal(invoice, true);
         }
     } catch (error) {
         console.error('Error loading invoice:', error);
         showToast('Failed to load invoice details', 'error');
     }
+}
+
+function downloadInvoicePdf(id) {
+    window.location.href = `/api/invoices/${id}/pdf`;
 }
 
 // Edit invoice
@@ -330,17 +358,16 @@ async function handleInvoiceSubmit(event) {
         const quantity = parseFloat(itemRow.querySelector('.item-quantity').value);
         const unit = itemRow.querySelector('.item-unit').value;
         const rate = parseFloat(itemRow.querySelector('.item-rate').value);
-        const amount = parseFloat(itemRow.querySelector('.item-amount').value);
-        
+        const discount = parseFloat(itemRow.querySelector('.item-discount').value) || 0;
+        const tax = parseFloat(itemRow.querySelector('.item-tax').value) || 0;
         if (product_id && quantity && unit && rate) {
             items.push({
                 product_id,
                 quantity,
                 unit,
                 rate,
-                discount: 0,
-                tax: 0,
-                amount
+                discount,
+                tax
             });
         }
     });
@@ -351,7 +378,7 @@ async function handleInvoiceSubmit(event) {
     }
     
     const invoiceData = {
-        invoice_number: document.getElementById('invoiceNumber').value,
+        invoice_number: document.getElementById('invoiceNumber').value.trim() || null,
         order_id: document.getElementById('invoiceOrder').value ? parseInt(document.getElementById('invoiceOrder').value) : null,
         restaurant_id: parseInt(document.getElementById('invoiceRestaurant').value),
         invoice_date: document.getElementById('invoiceDate').value,
@@ -377,7 +404,7 @@ async function handleInvoiceSubmit(event) {
         await loadInvoices();
     } catch (error) {
         console.error('Error saving invoice:', error);
-        showToast('Failed to save invoice', 'error');
+        showToast('Failed to save invoice: ' + (error.message || ''), 'error');
     }
 }
 

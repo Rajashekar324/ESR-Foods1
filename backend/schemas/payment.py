@@ -38,6 +38,7 @@ class PaymentCreate(BaseModel):
     expense_id: Optional[int] = None
     restaurant_id: Optional[int] = None
     vendor_id: Optional[int] = None
+    customer_id: Optional[int] = None
     amount: float = Field(..., gt=0)
     payment_method: PaymentMethod
     status: Optional[str] = "completed"
@@ -61,6 +62,7 @@ class PaymentResponse(BaseModel):
     expense_id: Optional[int] = None
     restaurant_id: Optional[int] = None
     vendor_id: Optional[int] = None
+    customer_id: Optional[int] = None
     amount: float
     payment_method: str
     status: str = "completed"

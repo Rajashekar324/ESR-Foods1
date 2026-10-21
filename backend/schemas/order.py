@@ -33,8 +33,8 @@ class OrderItemCreate(BaseModel):
     quantity: float = Field(..., gt=0)
     unit: str
     selling_price: float = Field(..., gt=0)
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
 
 
 class OrderItemResponse(BaseModel):
@@ -59,8 +59,8 @@ class OrderCreate(BaseModel):
     customer_id: Optional[int] = None
     order_date: datetime
     delivery_date: Optional[datetime] = None
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
     notes: Optional[str] = None
     items: List[OrderItemCreate] = Field(..., min_length=1)
 

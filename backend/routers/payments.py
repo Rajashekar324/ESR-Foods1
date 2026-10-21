@@ -6,13 +6,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from typing import List, Optional
 from datetime import datetime, timedelta
+from uuid import uuid4
 from backend.database import get_db
 from backend.models.payment import Payment, PaymentType, PaymentStatus
 from backend.models.invoice import Invoice
-from backend.models.purchase import Purchase
+from backend.models.purchase import Purchase, PurchaseStatus
 from backend.models.order import SalesOrder
 from backend.models.restaurant import Restaurant
 from backend.models.vendor import Vendor
+from backend.models.customer import RetailCustomer
+from backend.models.expense import Expense
 from backend.models.user import User
 from backend.schemas.payment import PaymentCreate, PaymentResponse, PaymentStatusUpdate
 from backend.auth.security import get_current_active_user, require_manager_or_admin
@@ -27,6 +30,11 @@ def parse_dates(start_date: str, end_date: str):
         return start_dt, end_dt
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid date format. Use YYYY-MM-DD")
+
+
+def as_naive_datetime(value: datetime) -> datetime:
+    """Normalize persisted date values for comparisons across SQLite and other DB drivers."""
+    return value.replace(tzinfo=None) if value.tzinfo else value
 
 
 def recalculate_linked_payment_status(db: Session, invoice_id: Optional[int], purchase_id: Optional[int]):
@@ -89,18 +97,26 @@ async def create_payment(
     if not payment_dict.get("status"):
         payment_dict["status"] = "completed"
 
+    if payment_dict["status"] not in {item.value for item in PaymentStatus}:
+        raise HTTPException(status_code=400, detail="Invalid payment status")
+
     if payment_dict["payment_type"] == PaymentType.PAYMENT:
+        if payment_dict.get("restaurant_id") or payment_dict.get("customer_id") or payment_dict.get("invoice_id"):
+            raise HTTPException(status_code=400, detail="Outgoing payments cannot be linked to a sales customer or invoice")
         if payment_dict.get("vendor_id") and payment_dict.get("expense_id"):
             raise HTTPException(status_code=400, detail="A payment can be linked to a vendor or an expense, not both")
-        if not payment_dict.get("vendor_id") and not payment_dict.get("expense_id") and not payment_dict.get("paid_to"):
+        if not payment_dict.get("vendor_id") and not payment_dict.get("expense_id") and not payment_dict.get("paid_to") and not payment_dict.get("purchase_id"):
             raise HTTPException(status_code=400, detail="Paid To is required for an operations payment")
-    elif payment_dict.get("category") or payment_dict.get("paid_to"):
-        raise HTTPException(status_code=400, detail="Operations fields are only valid for payments")
+        if payment_dict.get("category") and not payment_dict.get("paid_to"):
+            raise HTTPException(status_code=400, detail="Paid To is required for an operations payment")
+    else:
+        if payment_dict.get("purchase_id") or payment_dict.get("expense_id") or payment_dict.get("category") or payment_dict.get("paid_to"):
+            raise HTTPException(status_code=400, detail="Received receipts cannot be linked to outgoing payments or operations")
     
     # Auto generate payment code if missing
     if not payment_dict.get("payment_code"):
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-        payment_dict["payment_code"] = f"PAY-{timestamp}"
+        payment_dict["payment_code"] = f"{'REC' if payment_dict['payment_type'] == PaymentType.RECEIPT else 'PAY'}-{timestamp}-{uuid4().hex[:6].upper()}"
     elif db.query(Payment).filter(Payment.payment_code == payment_dict["payment_code"]).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,6 +133,17 @@ async def create_payment(
             )
         if not payment_dict.get("vendor_id"):
             payment_dict["vendor_id"] = purchase.vendor_id
+        elif payment_dict["vendor_id"] != purchase.vendor_id:
+            raise HTTPException(status_code=400, detail="The selected vendor does not match the purchase")
+
+    if payment_dict.get("vendor_id") and not db.query(Vendor).filter(Vendor.id == payment_dict["vendor_id"]).first():
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    if payment_dict.get("customer_id") and not db.query(RetailCustomer).filter(RetailCustomer.id == payment_dict["customer_id"]).first():
+        raise HTTPException(status_code=404, detail="Customer not found")
+    if payment_dict.get("restaurant_id") and not db.query(Restaurant).filter(Restaurant.id == payment_dict["restaurant_id"]).first():
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    if payment_dict.get("expense_id") and not db.query(Expense).filter(Expense.id == payment_dict["expense_id"]).first():
+        raise HTTPException(status_code=404, detail="Expense not found")
 
     # Verify invoice if linked
     if payment_dict.get("invoice_id"):
@@ -127,9 +154,30 @@ async def create_payment(
                 detail="Invoice not found"
             )
         
-        if payment_dict["payment_type"] == PaymentType.RECEIPT:
-            if invoice.restaurant_id and not payment_dict.get("restaurant_id"):
-                payment_dict["restaurant_id"] = invoice.restaurant_id
+        if payment_dict["payment_type"] != PaymentType.RECEIPT:
+            raise HTTPException(status_code=400, detail="Invoices can only be linked to received payments")
+        if not invoice.is_finalized:
+            raise HTTPException(status_code=400, detail="Only finalized invoices can receive payments")
+        if payment_dict.get("restaurant_id") and payment_dict["restaurant_id"] != invoice.restaurant_id:
+            raise HTTPException(status_code=400, detail="The selected restaurant does not match the invoice")
+        if payment_dict.get("customer_id") or payment_dict.get("vendor_id"):
+            raise HTTPException(status_code=400, detail="Restaurant invoices cannot be linked to a vendor or retail customer")
+        payment_dict["restaurant_id"] = invoice.restaurant_id
+        if payment_dict["status"] == PaymentStatus.COMPLETED:
+            already_received = db.query(func.sum(Payment.amount)).filter(
+                Payment.invoice_id == invoice.id,
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == PaymentStatus.COMPLETED
+            ).scalar() or 0
+            if already_received + payment_dict["amount"] > invoice.grand_total:
+                raise HTTPException(status_code=400, detail="Receipt amount exceeds the invoice balance due")
+
+    if payment_dict["payment_type"] == PaymentType.RECEIPT:
+        entity_ids = [payment_dict.get("restaurant_id"), payment_dict.get("vendor_id"), payment_dict.get("customer_id")]
+        if sum(value is not None for value in entity_ids) != 1:
+            raise HTTPException(status_code=400, detail="Choose exactly one receipt source: restaurant, vendor, or customer")
+        if payment_dict.get("restaurant_id") and not payment_dict.get("invoice_id"):
+            raise HTTPException(status_code=400, detail="Select a finalized invoice for every restaurant receipt so its balance is updated")
     
     # Create payment
     new_payment = Payment(**payment_dict)
@@ -163,6 +211,17 @@ async def update_payment_status(
     
     if status_update.status not in {item.value for item in PaymentStatus}:
         raise HTTPException(status_code=400, detail="Invalid payment status")
+    if status_update.status == PaymentStatus.COMPLETED and payment.invoice_id and payment.payment_type == PaymentType.RECEIPT:
+        invoice = db.query(Invoice).filter(Invoice.id == payment.invoice_id).first()
+        if invoice:
+            other_completed = db.query(func.sum(Payment.amount)).filter(
+                Payment.invoice_id == invoice.id,
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == PaymentStatus.COMPLETED,
+                Payment.id != payment.id
+            ).scalar() or 0
+            if other_completed + payment.amount > invoice.grand_total:
+                raise HTTPException(status_code=400, detail="Completing this receipt would exceed the invoice balance due")
     payment.status = status_update.status
     payment.updated_at = func.now()
     db.flush()
@@ -205,8 +264,10 @@ async def get_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     payment_type: Optional[str] = None,
+    payment_source: Optional[str] = Query(None, pattern="^(restaurant|vendor|customer|operations)$"),
     restaurant_id: Optional[int] = None,
     vendor_id: Optional[int] = None,
+    customer_id: Optional[int] = None,
     payment_method: Optional[str] = None,
     payment_status: Optional[str] = Query(None, alias="status"),
     current_user: User = Depends(get_current_active_user),
@@ -219,12 +280,24 @@ async def get_payments(
     
     if payment_type:
         query = query.filter(Payment.payment_type == payment_type)
+
+    if payment_source == "restaurant":
+        query = query.filter(Payment.restaurant_id.isnot(None))
+    elif payment_source == "vendor":
+        query = query.filter(Payment.vendor_id.isnot(None))
+    elif payment_source == "customer":
+        query = query.filter(Payment.customer_id.isnot(None))
+    elif payment_source == "operations":
+        query = query.filter(Payment.payment_type == PaymentType.PAYMENT, Payment.vendor_id.is_(None), Payment.restaurant_id.is_(None), Payment.customer_id.is_(None))
     
     if restaurant_id:
         query = query.filter(Payment.restaurant_id == restaurant_id)
     
     if vendor_id:
         query = query.filter(Payment.vendor_id == vendor_id)
+
+    if customer_id:
+        query = query.filter(Payment.customer_id == customer_id)
     
     if payment_method:
         query = query.filter(Payment.payment_method == payment_method)
@@ -266,10 +339,12 @@ async def get_vendor_ledger(
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
 
-    purchases = db.query(Purchase).filter(Purchase.vendor_id == vendor_id).order_by(Purchase.purchase_date.desc()).all()
+    purchases = db.query(Purchase).filter(
+        Purchase.vendor_id == vendor_id,
+        Purchase.status != PurchaseStatus.CANCELLED
+    ).order_by(Purchase.purchase_date.desc()).all()
     payments = db.query(Payment).filter(
         Payment.vendor_id == vendor_id,
-        Payment.payment_type == PaymentType.PAYMENT
     ).order_by(Payment.date.desc()).all()
     if start_date or end_date:
         start_dt, end_dt = parse_dates(
@@ -280,23 +355,29 @@ async def get_vendor_ledger(
         end_dt = datetime.utcnow()
         start_dt = end_dt - timedelta(days=60)
     adjustments = vendor.credit_adjustments or 0
-    statement_purchases = [purchase for purchase in purchases if start_dt <= purchase.purchase_date <= end_dt]
-    statement_payments = [payment for payment in payments if start_dt <= payment.date <= end_dt]
-    opening_purchases = sum(purchase.total or 0 for purchase in purchases if purchase.purchase_date < start_dt)
-    opening_payments = sum(payment.amount or 0 for payment in payments if payment.date < start_dt and payment.status == PaymentStatus.COMPLETED)
-    opening_balance = max(0, opening_purchases - opening_payments - adjustments)
+    statement_purchases = [purchase for purchase in purchases if start_dt <= as_naive_datetime(purchase.purchase_date) <= end_dt]
+    statement_payments = [payment for payment in payments if start_dt <= as_naive_datetime(payment.date) <= end_dt]
+    opening_purchases = sum(purchase.total or 0 for purchase in purchases if as_naive_datetime(purchase.purchase_date) < start_dt)
+    opening_payments = sum(payment.amount or 0 for payment in payments if as_naive_datetime(payment.date) < start_dt and payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.PAYMENT)
+    opening_refunds = sum(payment.amount or 0 for payment in payments if as_naive_datetime(payment.date) < start_dt and payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.RECEIPT)
+    opening_balance = opening_purchases - opening_payments - opening_refunds - adjustments
     period_purchases = sum(purchase.total or 0 for purchase in statement_purchases)
-    period_payments = sum(payment.amount or 0 for payment in statement_payments if payment.status == PaymentStatus.COMPLETED)
+    period_payments = sum(payment.amount or 0 for payment in statement_payments if payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.PAYMENT)
+    period_refunds = sum(payment.amount or 0 for payment in statement_payments if payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.RECEIPT)
     total_purchases = sum(purchase.total or 0 for purchase in purchases)
-    total_payments = sum(payment.amount or 0 for payment in payments if payment.status == PaymentStatus.COMPLETED)
+    total_payments = sum(payment.amount or 0 for payment in payments if payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.PAYMENT)
+    total_refunds = sum(payment.amount or 0 for payment in payments if payment.status == PaymentStatus.COMPLETED and payment.payment_type == PaymentType.RECEIPT)
+    current_balance = total_purchases - total_payments - total_refunds - adjustments
 
     return {
         "vendor_id": vendor.id,
         "vendor_name": vendor.name,
         "total_purchases": total_purchases,
         "total_payments": total_payments,
+        "refunds_received": total_refunds,
         "credit_adjustments": adjustments,
-        "pending_amount": max(0, total_purchases - total_payments - adjustments),
+        "pending_amount": max(0, current_balance),
+        "vendor_credit": max(0, -current_balance),
         "purchases": purchases,
         "payments": payments,
         "statement": {
@@ -307,7 +388,8 @@ async def get_vendor_ledger(
             "payments": statement_payments,
             "period_purchases": period_purchases,
             "period_payments": period_payments,
-            "closing_balance": max(0, opening_balance + period_purchases - period_payments)
+            "period_refunds": period_refunds,
+            "closing_balance": opening_balance + period_purchases - period_payments - period_refunds
         }
     }
 

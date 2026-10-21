@@ -288,12 +288,12 @@ async def get_restaurant_summary(
     ).scalar() or 0
     
     # Outstanding balance
-    outstanding = total_sales - total_payments
+    outstanding = max(0.0, total_sales - total_payments)
     
     # Credit usage
     credit_used = outstanding
     credit_available = restaurant.credit_limit - credit_used if restaurant.credit_limit > 0 else 0
-    credit_usage_percent = (credit_used / restaurant.credit_limit * 100) if restaurant.credit_limit > 0 else 0
+    credit_usage_percent = min(100.0, credit_used / restaurant.credit_limit * 100) if restaurant.credit_limit > 0 else 0
     
     # Number of orders
     order_count = db.query(SalesOrder).filter(
@@ -430,8 +430,8 @@ async def get_restaurant_statement(
         )
     ).scalar() or 0
     
-    opening_balance = opening_balance_invoices - opening_payments
-    closing_balance = opening_balance + total_sales - total_payments
+    opening_balance = max(0.0, opening_balance_invoices - opening_payments)
+    closing_balance = max(0.0, opening_balance + total_sales - total_payments)
     
     return {
         "restaurant_id": restaurant.id,

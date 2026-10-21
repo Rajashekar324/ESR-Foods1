@@ -169,11 +169,12 @@ async def get_restaurants_report(
         total_payments = db.query(func.sum(Payment.amount)).filter(
             and_(
                 Payment.restaurant_id == restaurant.id,
-                Payment.payment_type == PaymentType.RECEIPT
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == "completed"
             )
         ).scalar() or 0
         
-        outstanding = total_sales - total_payments
+        outstanding = max(0.0, total_sales - total_payments)
         
         order_count = db.query(SalesOrder).filter(
             SalesOrder.restaurant_id == restaurant.id
@@ -234,7 +235,8 @@ async def get_15_day_summary(
                 Payment.restaurant_id == restaurant.id,
                 Payment.date >= start_date,
                 Payment.date <= end_date,
-                Payment.payment_type == PaymentType.RECEIPT
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == "completed"
             )
         ).scalar() or 0
         
@@ -251,14 +253,15 @@ async def get_15_day_summary(
             and_(
                 Payment.restaurant_id == restaurant.id,
                 Payment.date < start_date,
-                Payment.payment_type == PaymentType.RECEIPT
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == "completed"
             )
         ).scalar() or 0
         
-        opening_balance = opening_balance - opening_payments
+        opening_balance = max(0.0, opening_balance - opening_payments)
         
         # Calculate closing balance
-        closing_balance = opening_balance + period_sales - period_payments
+        closing_balance = max(0.0, opening_balance + period_sales - period_payments)
         outstanding = closing_balance
         
         # Order count in period

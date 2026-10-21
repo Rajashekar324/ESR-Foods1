@@ -49,9 +49,18 @@ async def create_purchase(
     
     # Calculate totals
     subtotal = sum(item.quantity * item.rate for item in purchase_data.items)
+    item_discounts = sum(item.discount for item in purchase_data.items)
+    item_taxes = sum(item.tax for item in purchase_data.items)
     discount = purchase_data.discount
     tax = purchase_data.tax
-    total = subtotal - discount + tax
+    if discount < 0 or tax < 0 or item_discounts < 0 or item_taxes < 0 or discount + item_discounts > subtotal:
+        raise HTTPException(status_code=400, detail="Purchase discounts and taxes must be non-negative, and discounts cannot exceed subtotal")
+    for item in purchase_data.items:
+        if item.discount > item.quantity * item.rate:
+            raise HTTPException(status_code=400, detail="A purchase line discount cannot exceed its line subtotal")
+    total = subtotal - discount - item_discounts + tax + item_taxes
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="Purchase total must be greater than zero")
     
     # Create purchase
     new_purchase = Purchase(
@@ -178,20 +187,63 @@ async def update_purchase(
         )
     
     update_data = purchase_data.model_dump(exclude_unset=True)
+    requested_status = update_data.get("status")
+    if requested_status in {PurchaseStatus.RECEIVED, PurchaseStatus.PARTIALLY_RECEIVED} and requested_status != purchase.status:
+        raise HTTPException(status_code=400, detail="Use the Receive action to update inventory for a purchase")
+    if requested_status == PurchaseStatus.CANCELLED and purchase.status != PurchaseStatus.CANCELLED:
+        if purchase.status in {PurchaseStatus.RECEIVED, PurchaseStatus.PARTIALLY_RECEIVED}:
+            raise HTTPException(status_code=400, detail="Received purchases cannot be cancelled because they affect inventory")
+        if db.query(Payment).filter(Payment.purchase_id == purchase_id, Payment.status == "completed").first():
+            raise HTTPException(status_code=400, detail="Purchases with completed payment history cannot be cancelled")
+    if "discount" in update_data or "tax" in update_data:
+        discount = update_data.get("discount", purchase.discount or 0)
+        tax = update_data.get("tax", purchase.tax or 0)
+        if discount < 0 or tax < 0:
+            raise HTTPException(status_code=400, detail="Purchase discount and tax cannot be negative")
+        if discount > (purchase.subtotal or 0):
+            raise HTTPException(status_code=400, detail="Purchase discount cannot exceed subtotal")
+            line_discounts = sum(item.discount or 0 for item in purchase.items)
+            line_taxes = sum(item.tax or 0 for item in purchase.items)
+            if discount + line_discounts > (purchase.subtotal or 0):
+                raise HTTPException(status_code=400, detail="Purchase discounts cannot exceed subtotal")
+            purchase.total = (purchase.subtotal or 0) - discount - line_discounts + tax + line_taxes
+            if purchase.total <= 0:
+                raise HTTPException(status_code=400, detail="Purchase total must be greater than zero")
+    new_vendor_id = update_data.get("vendor_id")
+    if new_vendor_id is not None and new_vendor_id != purchase.vendor_id:
+        if not db.query(Vendor).filter(Vendor.id == new_vendor_id).first():
+            raise HTTPException(status_code=404, detail="Vendor not found")
+        if purchase.status in {PurchaseStatus.RECEIVED, PurchaseStatus.CANCELLED}:
+            raise HTTPException(status_code=400, detail="Received or cancelled purchases cannot be reassigned to another vendor")
+        completed_payment = db.query(Payment).filter(
+            Payment.purchase_id == purchase_id,
+            Payment.payment_type == PaymentType.PAYMENT,
+            Payment.status == "completed"
+        ).first()
+        if completed_payment:
+            raise HTTPException(status_code=400, detail="A purchase with completed payments cannot be reassigned to another vendor")
     for field, value in update_data.items():
         setattr(purchase, field, value)
+
+    if purchase.status == PurchaseStatus.CANCELLED:
+        for pending_payment in db.query(Payment).filter(
+            Payment.purchase_id == purchase_id,
+            Payment.status == "pending"
+        ).all():
+            pending_payment.status = "cancelled"
     
     purchase.updated_at = func.now()
 
     # Sync linked payment amount if exists
-    linked_payment = db.query(Payment).filter(
+    linked_payments = db.query(Payment).filter(
         Payment.purchase_id == purchase_id,
-        Payment.status == "pending",
-        Payment.notes.ilike("Auto payment entry%")
-    ).first()
-    if linked_payment:
-        linked_payment.amount = purchase.total
-        linked_payment.date = purchase.purchase_date
+        Payment.status == "pending"
+    ).all()
+    for linked_payment in linked_payments:
+        linked_payment.vendor_id = purchase.vendor_id
+        if (linked_payment.notes or "").startswith("Auto payment entry"):
+            linked_payment.amount = purchase.total
+            linked_payment.date = purchase.purchase_date
 
     db.commit()
     db.refresh(purchase)
@@ -220,6 +272,8 @@ async def receive_purchase(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Purchase already received"
         )
+    if purchase.status == PurchaseStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Cancelled purchases cannot be received")
     
     # Update purchase status
     purchase.status = PurchaseStatus.RECEIVED
@@ -281,38 +335,18 @@ async def delete_purchase(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Purchase not found"
         )
-    
-    # 1. Delete linked payments
-    try:
-        db.query(Payment).filter(Payment.purchase_id == purchase_id).delete(synchronize_session=False)
-    except Exception as e:
-        print("Notice: Error deleting payments during purchase delete:", e)
 
-    # 2. Delete purchase items
-    try:
-        db.query(PurchaseItem).filter(PurchaseItem.purchase_id == purchase_id).delete(synchronize_session=False)
-    except Exception as e:
-        print("Notice: Error deleting purchase items during purchase delete:", e)
+    if purchase.status in {PurchaseStatus.RECEIVED, PurchaseStatus.PARTIALLY_RECEIVED}:
+        raise HTTPException(status_code=400, detail="Received purchases cannot be deleted because they affect inventory. Use an inventory adjustment instead.")
+    if db.query(Payment).filter(Payment.purchase_id == purchase_id, Payment.status == "completed").first():
+        raise HTTPException(status_code=400, detail="Purchases with completed payment history cannot be deleted. Reverse the payment first.")
 
-    # 3. Delete stock movements
-    try:
-        db.query(StockMovement).filter(
-            StockMovement.reference_type == "purchase",
-            StockMovement.reference_id == purchase_id
-        ).delete(synchronize_session=False)
-    except Exception as e:
-        print("Notice: Error deleting stock movements during purchase delete:", e)
-
-    # 4. Delete product batches
-    try:
-        if purchase.purchase_code:
-            db.query(ProductBatch).filter(
-                ProductBatch.batch_number.like(f"%{purchase.purchase_code}%")
-            ).delete(synchronize_session=False)
-    except Exception as e:
-        print("Notice: Error deleting product batches during purchase delete:", e)
-
-    # 5. Delete purchase record
-    db.delete(purchase)
+    # Keep the purchase and its audit trail, while removing its unpaid draft payable.
+    purchase.status = PurchaseStatus.CANCELLED
+    for pending_payment in db.query(Payment).filter(
+        Payment.purchase_id == purchase_id,
+        Payment.status == "pending"
+    ).all():
+        pending_payment.status = "cancelled"
     db.commit()
-    return {"message": "Purchase deleted successfully"}
+    return {"message": "Purchase cancelled; its financial history was retained."}

@@ -8,6 +8,7 @@ from typing import List, Optional
 from backend.database import get_db
 from backend.models.customer import RetailCustomer
 from backend.models.order import SalesOrder
+from backend.models.payment import Payment, PaymentType
 from backend.models.user import User
 from backend.schemas.customer import CustomerCreate, CustomerUpdate, CustomerResponse
 from backend.auth.security import get_current_active_user, require_manager_or_admin
@@ -137,6 +138,24 @@ async def get_customer_orders(
     return orders
 
 
+@router.get("/{customer_id}/payments")
+async def get_customer_payments(
+    customer_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get receipt history recorded against a retail customer."""
+    customer = db.query(RetailCustomer).filter(RetailCustomer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return db.query(Payment).filter(
+        Payment.customer_id == customer_id,
+        Payment.payment_type == PaymentType.RECEIPT
+    ).order_by(Payment.date.desc()).offset(skip).limit(limit).all()
+
+
 @router.delete("/{customer_id}")
 async def delete_customer(
     customer_id: int,
@@ -152,6 +171,9 @@ async def delete_customer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Customer not found"
         )
+
+    if db.query(Payment).filter(Payment.customer_id == customer_id).count():
+        raise HTTPException(status_code=400, detail="Customers with payment history cannot be deleted. Keep the financial history intact.")
     
     db.delete(customer)
     db.commit()

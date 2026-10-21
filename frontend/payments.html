@@ -96,17 +96,30 @@
                 </div>
             </header>
 
+            <section class="payment-action-bar" aria-label="Create payment transaction">
+                <div>
+                    <h2>Record a transaction</h2>
+                    <p>Choose whether money was received or sent. Receipts from restaurants update the selected invoice and restaurant balance.</p>
+                </div>
+                <div class="payment-action-buttons">
+                    <button type="button" id="receivePaymentButton" class="btn btn-success">＋ Receive Payment</button>
+                    <button type="button" id="sendPaymentButton" class="btn btn-primary">− Send Payment</button>
+                </div>
+            </section>
+
             <!-- Filter Bar -->
             <div class="filter-bar">
                 <select id="paymentToFilter" class="form-select filter-select">
-                    <option value="">All Payment Destinations</option>
+                    <option value="">All Sources / Destinations</option>
+                    <option value="restaurant">Restaurants</option>
                     <option value="vendor">Vendors</option>
+                    <option value="customer">Customers</option>
                     <option value="operations">Operations</option>
                 </select>
                 <select id="paymentTypeFilter" class="form-select filter-select">
                     <option value="">All Types</option>
-                    <option value="receipt">Receipt (From Restaurants)</option>
-                    <option value="payment">Payment (To Vendors)</option>
+                    <option value="receipt">Received</option>
+                    <option value="payment">Sent</option>
                 </select>
                 <select id="paymentStatusFilter" class="form-select filter-select">
                     <option value="">All Status</option>
@@ -116,6 +129,9 @@
                 </select>
                 <select id="restaurantFilter" class="form-select filter-select">
                     <option value="">All Restaurants</option>
+                </select>
+                <select id="customerFilter" class="form-select filter-select">
+                    <option value="">All Customers</option>
                 </select>
                 <select id="vendorFilter" class="form-select filter-select">
                     <option value="">All Vendors</option>
@@ -128,13 +144,12 @@
                     <option value="card">Card</option>
                     <option value="cheque">Cheque</option>
                 </select>
-                <button class="btn btn-primary" onclick="openPaymentModal()">New Payment</button>
             </div>
 
             <section class="card" id="vendorLedgerPanel" style="display: none; margin-bottom: 1.5rem;">
                 <div class="card-header">
                     <h2 class="card-title" id="vendorLedgerTitle">Vendor Ledger</h2>
-                    <button class="btn btn-primary" onclick="openPaymentModal('vendor')">Make Payment</button>
+                    <button class="btn btn-primary" onclick="openPaymentModal('payment', 'vendor')">Make Payment</button>
                 </div>
                 <div class="filter-bar">
                     <label class="form-label">Statement from <input type="date" id="vendorStatementStart" class="form-input"></label>
@@ -144,9 +159,9 @@
                 <div id="vendorLedgerSummary" class="dashboard-grid"></div>
                 <div class="table-container">
                     <h3>Complete Payment History</h3>
-                    <table><thead><tr><th>Payment ID</th><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Purchase / Invoice</th><th>Status</th><th>Notes</th></tr></thead><tbody id="vendorPaymentHistory"></tbody></table>
+                    <table><thead><tr><th>Payment ID</th><th>Direction</th><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Purchase / Invoice</th><th>Status</th><th>Notes</th></tr></thead><tbody id="vendorPaymentHistory"></tbody></table>
                 </div>
-                <div class="table-container" style="margin-top: 1rem;"><h3>Vendor Statement</h3><div id="vendorStatementSummary"></div><h4>Purchases / Bills</h4><table><thead><tr><th>Date</th><th>Purchase</th><th>Invoice</th><th>Amount</th></tr></thead><tbody id="vendorPurchaseStatement"></tbody></table><h4>Payments</h4><table><thead><tr><th>Date</th><th>Payment ID</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead><tbody id="vendorPaymentStatement"></tbody></table></div>
+                <div class="table-container" style="margin-top: 1rem;"><h3>Vendor Statement</h3><div id="vendorStatementSummary"></div><h4>Purchases / Bills</h4><table><thead><tr><th>Date</th><th>Purchase</th><th>Invoice</th><th>Amount</th></tr></thead><tbody id="vendorPurchaseStatement"></tbody></table><h4>Payment Transactions</h4><table><thead><tr><th>Date</th><th>Payment ID</th><th>Direction</th><th>Method</th><th>Amount</th><th>Status</th></tr></thead><tbody id="vendorPaymentStatement"></tbody></table></div>
             </section>
 
             <!-- Payments Table -->
@@ -195,21 +210,37 @@
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Payment To</label>
-                    <select id="paymentTo" class="form-select" required onchange="handlePaymentToChange()">
-                        <option value="vendor">Vendor</option>
-                        <option value="operations">Operations</option>
+                    <label class="form-label">Transaction Type</label>
+                    <select id="paymentDirection" class="form-select" required onchange="handlePaymentToChange()">
+                        <option value="receipt">Money Received</option>
+                        <option value="payment">Money Sent</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label" id="paymentSourceLabel">Received From</label>
+                    <select id="paymentSource" class="form-select" required onchange="handlePaymentToChange()"></select>
+                </div>
                 
-                <div class="form-group" id="paymentInvoiceField">
+                <div class="form-group" id="paymentDateField">
                     <label class="form-label">Date</label>
                     <input type="date" id="paymentDate" class="form-input" required>
                 </div>
 
-                <div class="form-group" id="paymentPurchaseField">
+                <div class="form-group" id="paymentPurchaseField" style="display: none;">
                     <label class="form-label">Related Purchase (Optional)</label>
                     <select id="paymentPurchase" class="form-select"><option value="">Select Purchase</option></select>
+                </div>
+
+                <div class="form-group" id="paymentRestaurantField" style="display: none;">
+                    <label class="form-label">Restaurant</label>
+                    <select id="paymentRestaurant" class="form-select"><option value="">Select Restaurant</option></select>
+                    <small class="text-muted" id="paymentRestaurantBalance" aria-live="polite"></small>
+                </div>
+
+                <div class="form-group" id="paymentCustomerField" style="display: none;">
+                    <label class="form-label">Customer</label>
+                    <select id="paymentCustomer" class="form-select"><option value="">Select Customer</option></select>
                 </div>
                 
                 <div class="form-group">
@@ -221,15 +252,16 @@
                     </select>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Invoice</label>
+                <div class="form-group" id="paymentInvoiceSelectField" style="display: none;">
+                    <label class="form-label">Invoice to Apply Receipt To <span style="color:var(--danger-color);">*</span></label>
                     <select id="paymentInvoice" class="form-select">
-                        <option value="">Select Invoice (Optional)</option>
+                        <option value="">Select Invoice</option>
                     </select>
+                    <small class="text-muted" id="paymentInvoiceBalanceHint">The receipt reduces this invoice's balance and the restaurant's outstanding balance.</small>
                 </div>
                 
                 <div class="form-group" id="vendorField" style="display: none;">
-                    <label class="form-label">Select Vendor</label>
+                    <label class="form-label" id="vendorFieldLabel">Select Vendor</label>
                     <select id="paymentVendor" class="form-select">
                         <option value="">Select Vendor</option>
                     </select>
@@ -242,7 +274,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">Amount (₹)</label>
-                    <input type="number" id="paymentAmount" class="form-input" step="0.01" required>
+                    <input type="number" id="paymentAmount" class="form-input" step="0.01" min="0.01" required>
                 </div>
                 
                 <div class="form-group">
@@ -269,7 +301,7 @@
                 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline" onclick="closePaymentModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Payment</button>
+                    <button type="submit" class="btn btn-primary" id="savePaymentButton">Save Transaction</button>
                 </div>
             </form>
         </div>

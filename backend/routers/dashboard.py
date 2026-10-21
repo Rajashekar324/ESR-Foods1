@@ -7,7 +7,7 @@ from sqlalchemy import func, and_, desc
 from datetime import datetime, timedelta
 from backend.database import get_db
 from backend.models.invoice import Invoice, InvoiceItem
-from backend.models.purchase import Purchase
+from backend.models.purchase import Purchase, PurchaseStatus
 from backend.models.product import Product, Category
 from backend.models.restaurant import Restaurant
 from backend.models.payment import Payment, PaymentType, PaymentStatus
@@ -57,14 +57,19 @@ async def get_dashboard_summary(
         Invoice.is_finalized == True
     ).scalar() or 0
 
-    total_purchases = db.query(func.sum(Purchase.total)).scalar() or 0
+    total_purchases = db.query(func.sum(Purchase.total)).filter(Purchase.status != PurchaseStatus.CANCELLED).scalar() or 0
     total_vendor_payments = db.query(func.sum(Payment.amount)).filter(
         Payment.payment_type == PaymentType.PAYMENT,
         Payment.vendor_id.isnot(None),
         Payment.status == PaymentStatus.COMPLETED
     ).scalar() or 0
+    total_vendor_refunds = db.query(func.sum(Payment.amount)).filter(
+        Payment.payment_type == PaymentType.RECEIPT,
+        Payment.vendor_id.isnot(None),
+        Payment.status == PaymentStatus.COMPLETED
+    ).scalar() or 0
     total_vendor_adjustments = db.query(func.sum(Vendor.credit_adjustments)).scalar() or 0
-    outstanding_vendor_payables = max(0, total_purchases - total_vendor_payments - total_vendor_adjustments)
+    outstanding_vendor_payables = max(0, total_purchases - total_vendor_payments - total_vendor_refunds - total_vendor_adjustments)
     
     # Total stock value
     total_stock_value = db.query(func.sum(Product.current_stock * Product.purchase_price)).scalar() or 0

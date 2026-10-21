@@ -11,8 +11,8 @@ class InvoiceItemCreate(BaseModel):
     quantity: float = Field(..., gt=0)
     unit: str
     rate: float = Field(..., gt=0)
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
 
 
 class InvoiceItemResponse(BaseModel):
@@ -31,23 +31,23 @@ class InvoiceItemResponse(BaseModel):
 
 
 class InvoiceCreate(BaseModel):
-    invoice_number: str = Field(..., max_length=50)
+    invoice_number: Optional[str] = Field(None, max_length=50)
     order_id: Optional[int] = None
     restaurant_id: int
     invoice_date: datetime
     due_date: Optional[datetime] = None
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
     notes: Optional[str] = None
-    items: List[InvoiceItemCreate]
+    items: List[InvoiceItemCreate] = Field(..., min_length=1)
 
 
 class InvoiceUpdate(BaseModel):
     due_date: Optional[datetime] = None
-    discount: Optional[float] = None
-    tax: Optional[float] = None
+    discount: Optional[float] = Field(None, ge=0)
+    tax: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = None
-    is_finalized: Optional[bool] = None
+    items: Optional[List[InvoiceItemCreate]] = Field(None, min_length=1)
 
 
 class InvoiceResponse(BaseModel):

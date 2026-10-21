@@ -99,6 +99,9 @@ def init_db():
                 conn.execute(text("ALTER TABLE users ADD COLUMN locked_until DATETIME"))
             if "token_version" not in user_cols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
+            payment_cols = {column["name"] for column in inspect(engine).get_columns("payments")}
+            if "customer_id" not in payment_cols:
+                conn.execute(text("ALTER TABLE payments ADD COLUMN customer_id INTEGER REFERENCES retail_customers(id)"))
             vendor_cols = {column["name"] for column in inspect(engine).get_columns("vendors")}
             if "credit_adjustments" not in vendor_cols:
                 conn.execute(text("ALTER TABLE vendors ADD COLUMN credit_adjustments FLOAT DEFAULT 0"))

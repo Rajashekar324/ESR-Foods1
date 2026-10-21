@@ -124,6 +124,7 @@
                                 <th>Invoice Number</th>
                                 <th>Restaurant</th>
                                 <th>Invoice Date</th>
+                                <th>Due Date</th>
                                 <th>Grand Total</th>
                                 <th>Amount Paid</th>
                                 <th>Balance Due</th>
@@ -134,7 +135,7 @@
                         </thead>
                         <tbody id="invoicesTable">
                             <tr>
-                                <td colspan="9" class="loading">
+                                <td colspan="10" class="loading">
                                     <div class="spinner"></div>
                                 </td>
                             </tr>
@@ -147,7 +148,7 @@
 
     <!-- Invoice Modal -->
     <div class="modal" id="invoiceModal">
-        <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-content" style="max-width: 1000px;">
             <div class="modal-header">
                 <h3 class="modal-title" id="invoiceModalTitle">New Invoice</h3>
                 <button class="modal-close" onclick="closeInvoiceModal()">&times;</button>
@@ -157,7 +158,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">Invoice Number</label>
-                    <input type="text" id="invoiceNumber" class="form-input" required>
+                    <input type="text" id="invoiceNumber" class="form-input" placeholder="Assigned automatically when blank">
                 </div>
                 
                 <div class="form-group">
@@ -182,16 +183,17 @@
                 <div class="form-group">
                     <label class="form-label">Due Date</label>
                     <input type="date" id="invoiceDueDate" class="form-input">
+                    <small class="text-muted">Leave blank to use the configured billing cycle.</small>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Discount (₹)</label>
-                    <input type="number" id="invoiceDiscount" class="form-input" step="0.01" value="0">
+                    <input type="number" id="invoiceDiscount" class="form-input" step="0.01" min="0" value="0">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Tax (₹)</label>
-                    <input type="number" id="invoiceTax" class="form-input" step="0.01" value="0">
+                    <input type="number" id="invoiceTax" class="form-input" step="0.01" min="0" value="0">
                 </div>
                 
                 <div class="form-group">
@@ -199,7 +201,7 @@
                     <textarea id="invoiceNotes" class="form-textarea"></textarea>
                 </div>
                 
-                <div style="margin: 20px 0; padding: 20px; background: var(--background-color); border-radius: var(--radius-md);">
+                <div style="margin: 20px 0; padding: 20px; background: var(--background-color); border-radius: var(--radius-md); overflow-x: auto;">
                     <h4 style="margin-bottom: 15px;">Invoice Items</h4>
                     <div id="invoiceItems">
                         <!-- Items will be added dynamically -->

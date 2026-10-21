@@ -373,6 +373,11 @@ const customersAPI = {
     getOrders: async (id, params = {}) => {
         const queryString = new URLSearchParams(params).toString();
         return apiRequest(`/customers/${id}/orders?${queryString}`);
+    },
+
+    getPayments: async (id, params = {}) => {
+        const queryString = new URLSearchParams(params).toString();
+        return apiRequest(`/customers/${id}/payments?${queryString}`);
     }
 };
 
@@ -603,8 +608,18 @@ const usersAPI = {
         });
     },
 
-    approve: async (id) => {
-        return apiRequest(`/users/${id}/approve`, { method: 'PUT' });
+    approve: async (id, roleId) => {
+        return apiRequest(`/users/${id}/approve`, {
+            method: 'PUT',
+            body: roleId ? JSON.stringify({ role_id: roleId }) : undefined
+        });
+    },
+
+    updateRole: async (id, roleId) => {
+        return apiRequest(`/users/${id}/role`, {
+            method: 'PUT',
+            body: JSON.stringify({ role_id: roleId })
+        });
     },
 
     reject: async (id) => {

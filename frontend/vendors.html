@@ -133,6 +133,33 @@
                     </table>
                 </div>
             </div>
+
+            <section class="card" id="vendorStatementPanel" style="display:none; margin-top:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <h2 class="card-title" id="vendorStatementTitle">Vendor Statement</h2>
+                        <small class="text-muted" id="vendorStatementIdentity"></small>
+                    </div>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-outline" onclick="openVendorPurchase()">New Purchase for Vendor</button>
+                        <button class="btn btn-outline" onclick="closeVendorStatement()">Close</button>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <label class="form-label">From <input type="date" id="vendorStatementStart" class="form-input"></label>
+                    <label class="form-label">To <input type="date" id="vendorStatementEnd" class="form-input"></label>
+                    <button class="btn btn-primary" onclick="loadVendorStatement()">Refresh Statement</button>
+                </div>
+                <div id="vendorStatementSummary" class="dashboard-grid"></div>
+                <div class="table-container">
+                    <h3>Purchases / Bills</h3>
+                    <table><thead><tr><th>Date</th><th>Purchase Code</th><th>Vendor Invoice</th><th>Purchase Status</th><th>Payment Status</th><th>Amount</th></tr></thead><tbody id="vendorStatementPurchases"></tbody></table>
+                </div>
+                <div class="table-container" style="margin-top:1rem;">
+                    <h3>Payments and Refunds</h3>
+                    <table><thead><tr><th>Date</th><th>Reference</th><th>Direction</th><th>Method</th><th>Status</th><th>Amount</th></tr></thead><tbody id="vendorStatementPayments"></tbody></table>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -189,6 +216,15 @@
                 <div class="form-group">
                     <label class="form-label">Payment Terms</label>
                     <input type="text" id="vendorPaymentTerms" class="form-input">
+                </div>
+
+                <div class="form-group" id="vendorStatusField" style="display:none;">
+                    <label class="form-label">Vendor Status</label>
+                    <select id="vendorStatus" class="form-select">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                    <small class="text-muted">Inactive vendors are retained for historical purchase and payment records.</small>
                 </div>
                 
                 <div class="form-group">

@@ -5,6 +5,7 @@
 let allVendors = [];
 let allProducts = [];
 let purchaseItemCount = 0;
+let presetVendorId = null;
 
 // Initialize purchases page
 async function initPurchasesPage() {
@@ -16,12 +17,23 @@ async function initPurchasesPage() {
         
         // Load products for dropdown
         await loadProductsForDropdown();
+
+        const pageParams = new URLSearchParams(window.location.search);
+        presetVendorId = parseInt(pageParams.get('vendor_id'), 10) || null;
+        if (presetVendorId) {
+            document.getElementById('vendorFilter').value = String(presetVendorId);
+            document.getElementById('purchaseVendor').value = String(presetVendorId);
+        }
         
         // Load purchases
         await loadPurchases();
         
         // Setup event listeners
         setupEventListeners();
+
+        if (presetVendorId && pageParams.get('new') === '1') {
+            openPurchaseModal();
+        }
         
     } catch (error) {
         console.error('Purchases page initialization error:', error);
@@ -38,12 +50,12 @@ async function loadVendorsForDropdown() {
         const purchaseVendor = document.getElementById('purchaseVendor');
         
         const options = '<option value="">All Vendors</option>' +
-            allVendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+            allVendors.map(v => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
         
         if (vendorFilter) vendorFilter.innerHTML = options;
         
         const purchaseOptions = '<option value="">Select Vendor</option>' +
-            allVendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+            allVendors.map(v => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join('');
         
         if (purchaseVendor) purchaseVendor.innerHTML = purchaseOptions;
     } catch (error) {
@@ -110,7 +122,7 @@ function renderPurchasesTable(purchases) {
                 ${purchase.status === 'ordered' || purchase.status === 'partially_received' ? `
                     <button class="btn btn-sm btn-accent" onclick="receivePurchase(${purchase.id})">Receive</button>
                 ` : ''}
-                <button class="btn btn-sm btn-danger" onclick="deletePurchase(${purchase.id})">Delete</button>
+                ${purchase.status !== 'cancelled' ? `<button class="btn btn-sm btn-danger" onclick="deletePurchase(${purchase.id})">Cancel</button>` : ''}
             </td>
         </tr>
     `).join('');
@@ -141,6 +153,7 @@ function openPurchaseModal(purchase = null) {
     // Set default date
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('purchaseDate').value = today;
+    document.getElementById('purchaseCode').value = `PO-${Date.now()}`;
     
     if (purchase) {
         title.textContent = 'Edit Purchase';
@@ -164,11 +177,17 @@ function openPurchaseModal(purchase = null) {
         }
     } else {
         title.textContent = 'New Purchase';
+        if (presetVendorId) document.getElementById('purchaseVendor').value = String(presetVendorId);
+        else if (document.getElementById('vendorFilter').value) document.getElementById('purchaseVendor').value = document.getElementById('vendorFilter').value;
         // Add one empty item row
         addPurchaseItem();
     }
     
     modal.classList.add('show');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
 // Close purchase modal
@@ -329,7 +348,7 @@ async function handlePurchaseSubmit(event) {
         discount: parseFloat(document.getElementById('purchaseDiscount').value),
         tax: parseFloat(document.getElementById('purchaseTax').value),
         notes: document.getElementById('purchaseNotes').value,
-        items: items
+        ...(purchaseId ? {} : { items })
     };
     
     try {
@@ -353,7 +372,7 @@ async function handlePurchaseSubmit(event) {
 
 // Delete purchase
 async function deletePurchase(id) {
-    if (!confirm('⚠️ Are you sure you want to DELETE this purchase bill? This action cannot be undone.')) {
+    if (!confirm('Cancel this purchase? Its record will be retained and its pending payable will be removed. Received or paid purchases cannot be cancelled.')) {
         return;
     }
 
@@ -363,7 +382,7 @@ async function deletePurchase(id) {
         } else {
             await apiRequest(`/purchases/${id}`, { method: 'DELETE' });
         }
-        showToast('Purchase bill deleted successfully', 'success');
+        showToast('Purchase cancelled; its history was retained.', 'success');
         await loadPurchases();
     } catch (error) {
         console.error('Error deleting purchase:', error);

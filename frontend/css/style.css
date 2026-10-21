@@ -641,6 +641,67 @@ tbody tr:hover {
     min-width: 150px;
 }
 
+.payment-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-lg);
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid #d8e5ec;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(110deg, #f3fbf8, #f4f8fc);
+}
+
+.payment-action-bar > div:first-child {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.payment-action-bar h2 {
+    margin: 0 0 4px;
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+.payment-action-bar p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.payment-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+    .payment-action-bar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .payment-action-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .payment-action-buttons .btn {
+        min-width: 0;
+        width: 100%;
+        padding-inline: 0.65rem;
+        white-space: normal;
+        flex: 1;
+    }
+}
+
 /* Charts Container */
 .charts-grid {
     display: grid;

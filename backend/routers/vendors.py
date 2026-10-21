@@ -7,7 +7,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from backend.database import get_db
 from backend.models.vendor import Vendor
-from backend.models.purchase import Purchase
+from backend.models.purchase import Purchase, PurchaseStatus
 from backend.models.payment import Payment, PaymentType, PaymentStatus
 from backend.models.user import User
 from backend.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse
@@ -132,7 +132,8 @@ async def get_vendor_purchases(
         )
     
     purchases = db.query(Purchase).filter(
-        Purchase.vendor_id == vendor_id
+        Purchase.vendor_id == vendor_id,
+        Purchase.status != PurchaseStatus.CANCELLED
     ).order_by(Purchase.purchase_date.desc()).offset(skip).limit(limit).all()
     
     return purchases
@@ -157,8 +158,7 @@ async def get_vendor_payments(
         )
     
     payments = db.query(Payment).filter(
-        Payment.vendor_id == vendor_id,
-        Payment.payment_type == PaymentType.PAYMENT
+        Payment.vendor_id == vendor_id
     ).order_by(Payment.date.desc()).offset(skip).limit(limit).all()
     
     return payments
@@ -182,27 +182,37 @@ async def get_vendor_summary(
     
     # Total purchases
     total_purchases = db.query(func.sum(Purchase.total)).filter(
-        Purchase.vendor_id == vendor_id
+        Purchase.vendor_id == vendor_id,
+        Purchase.status != PurchaseStatus.CANCELLED
     ).scalar() or 0
     
-    # Total payments made
+    # Outgoing payments and incoming refunds both reduce the net payable.
     total_payments = db.query(func.sum(Payment.amount)).filter(
         Payment.vendor_id == vendor_id,
         Payment.payment_type == PaymentType.PAYMENT,
         Payment.status == PaymentStatus.COMPLETED
     ).scalar() or 0
+
+    total_refunds_received = db.query(func.sum(Payment.amount)).filter(
+        Payment.vendor_id == vendor_id,
+        Payment.payment_type == PaymentType.RECEIPT,
+        Payment.status == PaymentStatus.COMPLETED
+    ).scalar() or 0
     
     adjustments = vendor.credit_adjustments or 0
-    outstanding = max(0, total_purchases - total_payments - adjustments)
+    net_balance = total_purchases - total_payments - total_refunds_received - adjustments
+    outstanding = max(0, net_balance)
     
     # Number of purchases
     purchase_count = db.query(Purchase).filter(
-        Purchase.vendor_id == vendor_id
+        Purchase.vendor_id == vendor_id,
+        Purchase.status != PurchaseStatus.CANCELLED
     ).count()
     
     # Last purchase date
     last_purchase = db.query(Purchase).filter(
-        Purchase.vendor_id == vendor_id
+        Purchase.vendor_id == vendor_id,
+        Purchase.status != PurchaseStatus.CANCELLED
     ).order_by(Purchase.purchase_date.desc()).first()
     
     return {
@@ -210,8 +220,10 @@ async def get_vendor_summary(
         "vendor_name": vendor.name,
         "total_purchases": total_purchases,
         "total_payments": total_payments,
+        "refunds_received": total_refunds_received,
         "credit_adjustments": adjustments,
         "outstanding_payable": outstanding,
+        "vendor_credit": max(0, -net_balance),
         "purchase_count": purchase_count,
         "last_purchase_date": last_purchase.purchase_date if last_purchase else None
     }
@@ -232,6 +244,11 @@ async def delete_vendor(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vendor not found"
         )
+
+    has_purchase_history = db.query(Purchase).filter(Purchase.vendor_id == vendor_id).first()
+    has_payment_history = db.query(Payment).filter(Payment.vendor_id == vendor_id).first()
+    if has_purchase_history or has_payment_history:
+        raise HTTPException(status_code=400, detail="Vendors with purchase or payment history cannot be deleted. Deactivate the vendor to preserve financial records.")
     
     db.delete(vendor)
     db.commit()
