@@ -201,7 +201,7 @@ function addPurchaseItem(itemData = null) {
     const itemIndex = purchaseItemCount;
     
     const itemHtml = `
-        <div class="purchase-item" data-index="${itemIndex}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="purchase-item" data-index="${itemIndex}"${itemData?.id ? ` data-item-id="${itemData.id}"` : ''} style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -234,11 +234,10 @@ function addPurchaseItem(itemData = null) {
     const itemRow = document.querySelector(`[data-index="${itemIndex}"]`);
     
     if (itemData) {
-        itemRow.querySelector('.item-product').value = itemData.product_id;
+        itemRow.querySelector('.item-product').value = String(itemData.product_id);
         itemRow.querySelector('.item-quantity').value = itemData.quantity;
         itemRow.querySelector('.item-unit').value = itemData.unit;
         itemRow.querySelector('.item-rate').value = itemData.rate;
-        itemRow.querySelector('.item-total').value = itemData.total;
     }
     
     // Add event listeners for auto-calculation
@@ -250,10 +249,23 @@ function addPurchaseItem(itemData = null) {
         const quantity = parseFloat(quantityInput.value) || 0;
         const rate = parseFloat(rateInput.value) || 0;
         totalInput.value = (quantity * rate).toFixed(2);
+        updatePurchaseTotals();
     };
     
     quantityInput.addEventListener('input', calculateTotal);
     rateInput.addEventListener('input', calculateTotal);
+    calculateTotal();
+}
+
+function updatePurchaseTotals() {
+    const subtotal = Array.from(document.querySelectorAll('.purchase-item')).reduce((sum, row) => {
+        const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+        const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
+        return sum + quantity * rate;
+    }, 0);
+    const discount = parseFloat(document.getElementById('purchaseDiscount').value) || 0;
+    const tax = parseFloat(document.getElementById('purchaseTax').value) || 0;
+    return { subtotal, total: subtotal - discount + tax };
 }
 
 // Remove purchase item
@@ -323,6 +335,7 @@ async function handlePurchaseSubmit(event) {
         
         if (product_id && quantity && unit && rate) {
             items.push({
+                ...(itemRow.dataset.itemId ? { id: parseInt(itemRow.dataset.itemId, 10) } : {}),
                 product_id,
                 quantity,
                 unit,
@@ -339,6 +352,7 @@ async function handlePurchaseSubmit(event) {
         return;
     }
     
+    const totals = updatePurchaseTotals();
     const purchaseData = {
         purchase_code: document.getElementById('purchaseCode').value,
         vendor_id: parseInt(document.getElementById('purchaseVendor').value),
@@ -347,8 +361,10 @@ async function handlePurchaseSubmit(event) {
         expected_date: toIsoDateTime(document.getElementById('purchaseExpectedDate').value || null),
         discount: parseFloat(document.getElementById('purchaseDiscount').value),
         tax: parseFloat(document.getElementById('purchaseTax').value),
+        subtotal: totals.subtotal,
+        total: totals.total,
         notes: document.getElementById('purchaseNotes').value,
-        ...(purchaseId ? {} : { items })
+        items
     };
     
     try {
