@@ -4,6 +4,12 @@
 
 const API_BASE_URL = '/api';
 
+// Convert HTML date-input values only; preserve empty/null and existing datetimes.
+function toIsoDateTime(value) {
+    if (!value || typeof value !== 'string') return value;
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+}
+
 // Get auth token from localStorage
 function getAuthToken() {
     return localStorage.getItem('authToken');
@@ -547,13 +553,13 @@ const expensesAPI = {
 // Reports API
 const reportsAPI = {
     getSalesReport: async (startDate, endDate, restaurantId = null) => {
-        let url = `/reports/sales?start_date=${startDate}&end_date=${endDate}`;
+        let url = `/reports/sales?start_date=${toIsoDateTime(startDate)}&end_date=${toIsoDateTime(endDate)}`;
         if (restaurantId) url += `&restaurant_id=${restaurantId}`;
         return apiRequest(url);
     },
 
     getPurchasesReport: async (startDate, endDate, vendorId = null) => {
-        let url = `/reports/purchases?start_date=${startDate}&end_date=${endDate}`;
+        let url = `/reports/purchases?start_date=${toIsoDateTime(startDate)}&end_date=${toIsoDateTime(endDate)}`;
         if (vendorId) url += `&vendor_id=${vendorId}`;
         return apiRequest(url);
     },
@@ -567,11 +573,11 @@ const reportsAPI = {
     },
 
     get15DaySummary: async (startDate, endDate) => {
-        return apiRequest(`/reports/restaurants/15-day-summary?start_date=${startDate}&end_date=${endDate}`);
+        return apiRequest(`/reports/restaurants/15-day-summary?start_date=${toIsoDateTime(startDate)}&end_date=${toIsoDateTime(endDate)}`);
     },
 
     getProfitReport: async (startDate, endDate) => {
-        return apiRequest(`/reports/profit?start_date=${startDate}&end_date=${endDate}`);
+        return apiRequest(`/reports/profit?start_date=${toIsoDateTime(startDate)}&end_date=${toIsoDateTime(endDate)}`);
     }
 };
 

@@ -327,7 +327,7 @@ async function handlePaymentSubmit(event) {
     const paymentData = {
         payment_code: document.getElementById('paymentCode').value,
         payment_type: isReceipt ? 'receipt' : 'payment',
-        date: document.getElementById('paymentDate').value,
+        date: toIsoDateTime(document.getElementById('paymentDate').value),
         status: document.getElementById('paymentStatus').value,
         invoice_id: isReceipt && source === 'restaurant' && document.getElementById('paymentInvoice').value ? parseInt(document.getElementById('paymentInvoice').value) : null,
         purchase_id: !isReceipt && source === 'vendor' && document.getElementById('paymentPurchase').value ? parseInt(document.getElementById('paymentPurchase').value) : null,

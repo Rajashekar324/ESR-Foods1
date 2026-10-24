@@ -169,7 +169,7 @@ async function handleExpenseSubmit(event) {
         expense_code: document.getElementById('expenseCode').value,
         category: document.getElementById('expenseCategory').value,
         description: document.getElementById('expenseDescription').value,
-        date: document.getElementById('expenseDate').value,
+        date: toIsoDateTime(document.getElementById('expenseDate').value),
         amount: parseFloat(document.getElementById('expenseAmount').value),
         payment_method: document.getElementById('expensePaymentMethod').value,
         reference_number: document.getElementById('expenseReference').value,

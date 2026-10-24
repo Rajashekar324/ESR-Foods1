@@ -317,12 +317,12 @@ async function handleBatchSubmit(event) {
         batch_number: document.getElementById('batchNumber').value,
         product_id: parseInt(document.getElementById('batchProduct').value),
         vendor_id: parseInt(document.getElementById('batchVendor').value),
-        purchase_date: document.getElementById('batchPurchaseDate').value,
-        received_date: document.getElementById('batchReceivedDate').value,
+        purchase_date: toIsoDateTime(document.getElementById('batchPurchaseDate').value),
+        received_date: toIsoDateTime(document.getElementById('batchReceivedDate').value),
         quantity: parseFloat(document.getElementById('batchQuantity').value),
         purchase_rate: parseFloat(document.getElementById('batchPurchaseRate').value),
-        manufacturing_date: document.getElementById('batchManufacturingDate').value || null,
-        expiry_date: document.getElementById('batchExpiryDate').value || null,
+        manufacturing_date: toIsoDateTime(document.getElementById('batchManufacturingDate').value || null),
+        expiry_date: toIsoDateTime(document.getElementById('batchExpiryDate').value || null),
         storage_location: document.getElementById('batchStorageLocation').value
     };
     
