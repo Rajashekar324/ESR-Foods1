@@ -16,12 +16,16 @@ class PurchaseStatus(str, Enum):
 
 
 class PurchaseItemCreate(BaseModel):
-    product_id: int
+    product_id: int = Field(..., gt=0)
     quantity: float = Field(..., gt=0)
-    unit: str
+    unit: str = Field(..., min_length=1, max_length=20)
     rate: float = Field(..., gt=0)
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
+
+
+class PurchaseItemUpdate(PurchaseItemCreate):
+    id: Optional[int] = Field(None, gt=0)
 
 
 class PurchaseItemResponse(BaseModel):
@@ -45,22 +49,25 @@ class PurchaseCreate(BaseModel):
     vendor_invoice_number: Optional[str] = None
     purchase_date: datetime
     expected_date: Optional[datetime] = None
-    discount: float = 0
-    tax: float = 0
+    discount: float = Field(0, ge=0)
+    tax: float = Field(0, ge=0)
     notes: Optional[str] = None
     items: List[PurchaseItemCreate]
 
 
 class PurchaseUpdate(BaseModel):
+    purchase_code: Optional[str] = None
     vendor_id: Optional[int] = None
     vendor_invoice_number: Optional[str] = None
+    purchase_date: Optional[datetime] = None
     expected_date: Optional[datetime] = None
     received_date: Optional[datetime] = None
-    discount: Optional[float] = None
-    tax: Optional[float] = None
+    discount: Optional[float] = Field(None, ge=0)
+    tax: Optional[float] = Field(None, ge=0)
     payment_status: Optional[str] = None
     status: Optional[PurchaseStatus] = None
     notes: Optional[str] = None
+    items: Optional[List[PurchaseItemUpdate]] = None
 
 
 class PurchaseResponse(BaseModel):

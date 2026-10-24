@@ -240,6 +240,7 @@ async def update_invoice(
 
     if invoice.due_date and invoice.due_date < invoice.invoice_date:
         raise HTTPException(status_code=400, detail="Due date cannot be earlier than the invoice date")
+    if invoice_data.items is not None:
         for item_data in invoice_data.items:
             if item_data.discount > item_data.quantity * item_data.rate:
                 raise HTTPException(status_code=400, detail="An invoice line discount cannot exceed its line subtotal")

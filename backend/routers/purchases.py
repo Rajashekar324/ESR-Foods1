@@ -186,7 +186,10 @@ async def update_purchase(
             detail="Purchase not found"
         )
     
-    update_data = purchase_data.model_dump(exclude_unset=True)
+    update_data = purchase_data.model_dump(exclude_unset=True, exclude={"items"})
+    requested_items = purchase_data.items
+    if purchase.status in {PurchaseStatus.RECEIVED, PurchaseStatus.PARTIALLY_RECEIVED, PurchaseStatus.CANCELLED} and (requested_items is not None or any(field in update_data for field in ("purchase_code", "purchase_date", "vendor_id"))):
+        raise HTTPException(status_code=400, detail="Received or cancelled purchase details cannot be edited")
     requested_status = update_data.get("status")
     if requested_status in {PurchaseStatus.RECEIVED, PurchaseStatus.PARTIALLY_RECEIVED} and requested_status != purchase.status:
         raise HTTPException(status_code=400, detail="Use the Receive action to update inventory for a purchase")
@@ -195,20 +198,20 @@ async def update_purchase(
             raise HTTPException(status_code=400, detail="Received purchases cannot be cancelled because they affect inventory")
         if db.query(Payment).filter(Payment.purchase_id == purchase_id, Payment.status == "completed").first():
             raise HTTPException(status_code=400, detail="Purchases with completed payment history cannot be cancelled")
-    if "discount" in update_data or "tax" in update_data:
-        discount = update_data.get("discount", purchase.discount or 0)
-        tax = update_data.get("tax", purchase.tax or 0)
-        if discount < 0 or tax < 0:
-            raise HTTPException(status_code=400, detail="Purchase discount and tax cannot be negative")
-        if discount > (purchase.subtotal or 0):
-            raise HTTPException(status_code=400, detail="Purchase discount cannot exceed subtotal")
-            line_discounts = sum(item.discount or 0 for item in purchase.items)
-            line_taxes = sum(item.tax or 0 for item in purchase.items)
-            if discount + line_discounts > (purchase.subtotal or 0):
-                raise HTTPException(status_code=400, detail="Purchase discounts cannot exceed subtotal")
-            purchase.total = (purchase.subtotal or 0) - discount - line_discounts + tax + line_taxes
-            if purchase.total <= 0:
-                raise HTTPException(status_code=400, detail="Purchase total must be greater than zero")
+    proposed_items = requested_items if requested_items is not None else purchase.items
+    subtotal = sum(item.quantity * item.rate for item in proposed_items)
+    item_discounts = sum(item.discount or 0 for item in proposed_items)
+    item_taxes = sum(item.tax or 0 for item in proposed_items)
+    discount = update_data.get("discount", purchase.discount or 0)
+    tax = update_data.get("tax", purchase.tax or 0)
+    if discount < 0 or tax < 0 or item_discounts < 0 or item_taxes < 0 or discount + item_discounts > subtotal:
+        raise HTTPException(status_code=400, detail="Purchase discounts and taxes must be non-negative, and discounts cannot exceed subtotal")
+    for item in proposed_items:
+        if item.discount > item.quantity * item.rate:
+            raise HTTPException(status_code=400, detail="A purchase line discount cannot exceed its line subtotal")
+    total = subtotal - discount - item_discounts + tax + item_taxes
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="Purchase total must be greater than zero")
     new_vendor_id = update_data.get("vendor_id")
     if new_vendor_id is not None and new_vendor_id != purchase.vendor_id:
         if not db.query(Vendor).filter(Vendor.id == new_vendor_id).first():
@@ -222,8 +225,47 @@ async def update_purchase(
         ).first()
         if completed_payment:
             raise HTTPException(status_code=400, detail="A purchase with completed payments cannot be reassigned to another vendor")
+
+    new_code = update_data.get("purchase_code")
+    if new_code and new_code != purchase.purchase_code and db.query(Purchase).filter(
+        Purchase.purchase_code == new_code, Purchase.id != purchase_id
+    ).first():
+        raise HTTPException(status_code=400, detail="Purchase code already exists")
+
+    if requested_items is not None:
+        existing_items = {item.id: item for item in purchase.items}
+        retained_ids = set()
+        for item_data in requested_items:
+            product = db.query(Product).filter(Product.id == item_data.product_id).first()
+            if not product:
+                raise HTTPException(status_code=400, detail=f"Product with ID {item_data.product_id} not found")
+            values = {
+                "product_id": item_data.product_id,
+                "quantity": item_data.quantity,
+                "unit": item_data.unit,
+                "rate": item_data.rate,
+                "discount": item_data.discount,
+                "tax": item_data.tax,
+                "total": item_data.quantity * item_data.rate - item_data.discount + item_data.tax,
+            }
+            if item_data.id is not None:
+                existing_item = existing_items.get(item_data.id)
+                if existing_item is None:
+                    raise HTTPException(status_code=400, detail=f"Purchase item {item_data.id} does not belong to purchase {purchase_id}")
+                for field, value in values.items():
+                    setattr(existing_item, field, value)
+                retained_ids.add(item_data.id)
+            else:
+                purchase.items.append(PurchaseItem(**values))
+        for item_id, existing_item in existing_items.items():
+            if item_id not in retained_ids:
+                purchase.items.remove(existing_item)
+
     for field, value in update_data.items():
         setattr(purchase, field, value)
+
+    purchase.subtotal = subtotal
+    purchase.total = total
 
     if purchase.status == PurchaseStatus.CANCELLED:
         for pending_payment in db.query(Payment).filter(

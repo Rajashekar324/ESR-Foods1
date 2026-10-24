@@ -201,7 +201,7 @@ function addPurchaseItem(itemData = null) {
     const itemIndex = purchaseItemCount;
     
     const itemHtml = `
-        <div class="purchase-item" data-index="${itemIndex}"${itemData?.id ? ` data-item-id="${itemData.id}"` : ''} style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="purchase-item" data-index="${itemIndex}"${itemData?.id ? ` data-item-id="${itemData.id}"` : ''} data-item-discount="${itemData?.discount ?? 0}" data-item-tax="${itemData?.tax ?? 0}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -244,13 +244,21 @@ function addPurchaseItem(itemData = null) {
     const quantityInput = itemRow.querySelector('.item-quantity');
     const rateInput = itemRow.querySelector('.item-rate');
     const totalInput = itemRow.querySelector('.item-total');
+    const productInput = itemRow.querySelector('.item-product');
     
     const calculateTotal = () => {
         const quantity = parseFloat(quantityInput.value) || 0;
         const rate = parseFloat(rateInput.value) || 0;
-        totalInput.value = (quantity * rate).toFixed(2);
+        totalInput.value = (quantity * rate - (parseFloat(itemRow.dataset.itemDiscount) || 0) + (parseFloat(itemRow.dataset.itemTax) || 0)).toFixed(2);
         updatePurchaseTotals();
     };
+
+    if (!itemData) {
+        productInput.addEventListener('change', () => {
+            const product = allProducts.find(candidate => candidate.id === parseInt(productInput.value, 10));
+            if (product) itemRow.querySelector('.item-unit').value = product.unit;
+        });
+    }
     
     quantityInput.addEventListener('input', calculateTotal);
     rateInput.addEventListener('input', calculateTotal);
@@ -263,9 +271,11 @@ function updatePurchaseTotals() {
         const rate = parseFloat(row.querySelector('.item-rate').value) || 0;
         return sum + quantity * rate;
     }, 0);
+    const itemDiscounts = Array.from(document.querySelectorAll('.purchase-item')).reduce((sum, row) => sum + (parseFloat(row.dataset.itemDiscount) || 0), 0);
+    const itemTaxes = Array.from(document.querySelectorAll('.purchase-item')).reduce((sum, row) => sum + (parseFloat(row.dataset.itemTax) || 0), 0);
     const discount = parseFloat(document.getElementById('purchaseDiscount').value) || 0;
     const tax = parseFloat(document.getElementById('purchaseTax').value) || 0;
-    return { subtotal, total: subtotal - discount + tax };
+    return { subtotal, total: subtotal - discount - itemDiscounts + tax + itemTaxes };
 }
 
 // Remove purchase item
@@ -340,8 +350,8 @@ async function handlePurchaseSubmit(event) {
                 quantity,
                 unit,
                 rate,
-                discount: 0,
-                tax: 0,
+                discount: parseFloat(itemRow.dataset.itemDiscount) || 0,
+                tax: parseFloat(itemRow.dataset.itemTax) || 0,
                 total
             });
         }
