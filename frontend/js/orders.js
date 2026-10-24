@@ -443,13 +443,15 @@ async function handleOrderSubmit(event) {
         return;
     }
     
+    const orderDate = document.getElementById('orderDate').value;
+    const deliveryDate = document.getElementById('orderDeliveryDate').value;
     const orderData = {
         order_code: document.getElementById('orderCode').value,
         customer_type: customerType,
         restaurant_id: restaurant_id,
         customer_id: customer_id,
-        order_date: document.getElementById('orderDate').value,
-        delivery_date: document.getElementById('orderDeliveryDate').value || null,
+        order_date: orderDate ? `${orderDate}T00:00:00` : null,
+        delivery_date: deliveryDate ? `${deliveryDate}T00:00:00` : null,
         discount: parseFloat(document.getElementById('orderDiscount').value) || 0,
         tax: parseFloat(document.getElementById('orderTax').value) || 0,
         notes: document.getElementById('orderNotes').value,
