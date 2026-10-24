@@ -97,7 +97,7 @@
             </header>
 
             <!-- Settings Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+            <div class="settings-grid">
                 <!-- Company Settings -->
                 <div class="card">
                     <div class="card-header">
@@ -137,11 +137,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Billing Cycle (Days)</label>
-                        <input type="number" id="settingBillingCycle" class="form-input" step="1">
+                        <input type="number" id="settingBillingCycle" class="form-input" step="1" min="1" max="365">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Default Tax Rate (%)</label>
-                        <input type="number" id="settingTaxRate" class="form-input" step="0.1">
+                        <input type="number" id="settingTaxRate" class="form-input" step="0.01" min="0" max="100">
                     </div>
                     <button class="btn btn-primary" onclick="saveInvoiceSettings()">Save Invoice Settings</button>
                 </div>
@@ -153,11 +153,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Low Stock Threshold (%)</label>
-                        <input type="number" id="settingLowStockThreshold" class="form-input" step="1">
+                        <input type="number" id="settingLowStockThreshold" class="form-input" step="1" min="0">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Expiry Warning Days</label>
-                        <input type="number" id="settingExpiryWarningDays" class="form-input" step="1">
+                        <input type="number" id="settingExpiryWarningDays" class="form-input" step="1" min="0">
                     </div>
                     <button class="btn btn-primary" onclick="saveInventorySettings()">Save Inventory Settings</button>
                 </div>

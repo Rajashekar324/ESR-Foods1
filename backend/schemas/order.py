@@ -29,6 +29,7 @@ class CustomerType(str, Enum):
 
 
 class OrderItemCreate(BaseModel):
+    id: Optional[int] = None
     product_id: int
     quantity: float = Field(..., gt=0)
     unit: str
@@ -66,9 +67,11 @@ class OrderCreate(BaseModel):
 
 
 class OrderUpdate(BaseModel):
+    order_date: Optional[datetime] = None
     delivery_date: Optional[datetime] = None
-    discount: Optional[float] = None
-    tax: Optional[float] = None
+    discount: Optional[float] = Field(None, ge=0)
+    tax: Optional[float] = Field(None, ge=0)
+    items: Optional[List[OrderItemCreate]] = Field(None, min_length=1)
     payment_status: Optional[str] = None
     order_status: Optional[OrderStatus] = None
     delivery_status: Optional[DeliveryStatus] = None

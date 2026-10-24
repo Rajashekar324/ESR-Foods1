@@ -201,7 +201,7 @@ function addPurchaseItem(itemData = null) {
     const itemIndex = purchaseItemCount;
     
     const itemHtml = `
-        <div class="purchase-item" data-index="${itemIndex}"${itemData?.id ? ` data-item-id="${itemData.id}"` : ''} data-item-discount="${itemData?.discount ?? 0}" data-item-tax="${itemData?.tax ?? 0}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="purchase-item" data-index="${itemIndex}"${itemData?.id ? ` data-item-id="${itemData.id}"` : ''} data-item-discount="${itemData?.discount ?? 0}" data-item-tax="${itemData?.tax ?? 0}">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -211,7 +211,7 @@ function addPurchaseItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-input item-quantity" step="0.1" required>
+                <input type="number" class="form-input item-quantity" step="0.01" min="0.01" required>
             </div>
             <div>
                 <label class="form-label">Unit</label>
@@ -219,7 +219,7 @@ function addPurchaseItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Rate</label>
-                <input type="number" class="form-input item-rate" step="0.01" required>
+                <input type="number" class="form-input item-rate" step="0.01" min="0.01" required>
             </div>
             <div>
                 <label class="form-label">Total</label>

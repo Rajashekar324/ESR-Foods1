@@ -17,7 +17,7 @@ from backend.models.vendor import Vendor
 from backend.models.customer import RetailCustomer
 from backend.models.expense import Expense
 from backend.models.user import User
-from backend.schemas.payment import PaymentCreate, PaymentResponse, PaymentStatusUpdate
+from backend.schemas.payment import PaymentCreate, PaymentResponse, PaymentStatusUpdate, PaymentUpdate
 from backend.auth.security import get_current_active_user, require_manager_or_admin
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"], dependencies=[Depends(require_manager_or_admin())])
@@ -176,8 +176,6 @@ async def create_payment(
         entity_ids = [payment_dict.get("restaurant_id"), payment_dict.get("vendor_id"), payment_dict.get("customer_id")]
         if sum(value is not None for value in entity_ids) != 1:
             raise HTTPException(status_code=400, detail="Choose exactly one receipt source: restaurant, vendor, or customer")
-        if payment_dict.get("restaurant_id") and not payment_dict.get("invoice_id"):
-            raise HTTPException(status_code=400, detail="Select a finalized invoice for every restaurant receipt so its balance is updated")
     
     # Create payment
     new_payment = Payment(**payment_dict)
@@ -228,6 +226,53 @@ async def update_payment_status(
 
     recalculate_linked_payment_status(db, payment.invoice_id, payment.purchase_id)
 
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+@router.put("/{payment_id}", response_model=PaymentResponse)
+async def update_payment(
+    payment_id: int,
+    payment_data: PaymentUpdate,
+    current_user: User = Depends(require_manager_or_admin()),
+    db: Session = Depends(get_db),
+):
+    """Edit a payment ledger entry and reconcile linked document status."""
+    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    update_data = payment_data.model_dump(exclude_unset=True)
+    new_invoice_id = update_data.get("invoice_id", payment.invoice_id)
+    new_amount = update_data.get("amount", payment.amount)
+    new_status = update_data.get("status", payment.status)
+    if new_status not in {item.value for item in PaymentStatus}:
+        raise HTTPException(status_code=400, detail="Invalid payment status")
+    if new_invoice_id is not None:
+        if payment.payment_type != PaymentType.RECEIPT or not payment.restaurant_id:
+            raise HTTPException(status_code=400, detail="Only restaurant receipts can be linked to an invoice")
+        invoice = db.query(Invoice).filter(Invoice.id == new_invoice_id).first()
+        if not invoice or not invoice.is_finalized:
+            raise HTTPException(status_code=400, detail="A finalized invoice is required")
+        if invoice.restaurant_id != payment.restaurant_id:
+            raise HTTPException(status_code=400, detail="The selected restaurant does not match the invoice")
+        if new_status == PaymentStatus.COMPLETED:
+            other_paid = db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+                Payment.invoice_id == new_invoice_id,
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == PaymentStatus.COMPLETED,
+                Payment.id != payment.id,
+            ).scalar() or 0
+            if other_paid + new_amount > invoice.grand_total:
+                raise HTTPException(status_code=400, detail="Receipt amount exceeds the invoice balance due")
+    old_invoice_id, purchase_id = payment.invoice_id, payment.purchase_id
+    for field, value in update_data.items():
+        setattr(payment, field, value)
+    payment.updated_at = func.now()
+    db.flush()
+    recalculate_linked_payment_status(db, old_invoice_id, purchase_id)
+    if payment.invoice_id != old_invoice_id:
+        recalculate_linked_payment_status(db, payment.invoice_id, purchase_id)
     db.commit()
     db.refresh(payment)
     return payment

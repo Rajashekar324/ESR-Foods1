@@ -238,6 +238,14 @@
                     <small class="text-muted" id="paymentRestaurantBalance" aria-live="polite"></small>
                 </div>
 
+                <div class="form-group" id="paymentAllocationField" style="display: none;">
+                    <label class="form-label">Payment Allocation</label>
+                    <select id="paymentAllocation" class="form-select">
+                        <option value="lumpsum">Lumpsum Payment</option>
+                        <option value="invoice">Apply to Invoice</option>
+                    </select>
+                </div>
+
                 <div class="form-group" id="paymentCustomerField" style="display: none;">
                     <label class="form-label">Customer</label>
                     <select id="paymentCustomer" class="form-select"><option value="">Select Customer</option></select>
@@ -253,7 +261,7 @@
                 </div>
                 
                 <div class="form-group" id="paymentInvoiceSelectField" style="display: none;">
-                    <label class="form-label">Invoice to Apply Receipt To <span style="color:var(--danger-color);">*</span></label>
+                    <label class="form-label">Invoice (optional)</label>
                     <select id="paymentInvoice" class="form-select">
                         <option value="">Select Invoice</option>
                     </select>

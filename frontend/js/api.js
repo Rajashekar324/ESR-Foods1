@@ -491,6 +491,13 @@ const paymentsAPI = {
         });
     },
 
+    update: async (id, data) => {
+        return apiRequest(`/payments/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    },
+
     updateStatus: async (id, status) => {
         return apiRequest(`/payments/${id}/status`, {
             method: 'PUT',

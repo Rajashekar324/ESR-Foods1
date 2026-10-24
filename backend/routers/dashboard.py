@@ -16,6 +16,11 @@ from backend.models.batch import ProductBatch
 from backend.models.user import User
 from backend.schemas.dashboard import DashboardSummary, DashboardCharts, FifteenDaySummary
 from backend.auth.security import get_current_active_user, require_manager_or_admin
+from backend.services.restaurant_balance import (
+    completed_restaurant_receipts,
+    finalized_restaurant_invoices,
+    restaurant_balance_totals,
+)
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"], dependencies=[Depends(require_manager_or_admin())])
 
@@ -62,10 +67,11 @@ async def get_dashboard_summary(
         )
     ).scalar() or 0
     
-    # Outstanding receivables
-    outstanding_receivables = db.query(func.sum(Invoice.grand_total) - func.sum(Invoice.amount_paid)).filter(
-        Invoice.is_finalized == True
-    ).scalar() or 0
+    # Outstanding restaurant receivables use the same ledger calculation as restaurant summaries.
+    outstanding_receivables = sum(
+        restaurant_balance_totals(db, restaurant_id)["outstanding"]
+        for (restaurant_id,) in db.query(Restaurant.id).all()
+    )
 
     total_purchases = db.query(func.sum(Purchase.total)).filter(Purchase.status != PurchaseStatus.CANCELLED).scalar() or 0
     total_vendor_payments = db.query(func.sum(Payment.amount)).filter(
@@ -218,28 +224,37 @@ async def get_15_day_summary(
         period_end = period_end.replace(day=15)
     
     # Get all invoices in this period
-    invoices = db.query(Invoice).filter(
-        and_(
+    restaurants = db.query(Restaurant).all()
+    invoices_by_restaurant = {
+        restaurant.id: finalized_restaurant_invoices(db, restaurant.id).filter(
             Invoice.invoice_date >= period_start,
             Invoice.invoice_date <= period_end,
-            Invoice.is_finalized == True
-        )
-    ).all()
-    
+        ).all()
+        for restaurant in restaurants
+    }
+    invoices = [invoice for restaurant_invoices in invoices_by_restaurant.values() for invoice in restaurant_invoices]
     total_sales = sum(inv.grand_total for inv in invoices)
-    total_collected = sum(inv.amount_paid for inv in invoices)
+    total_collected = sum(
+        completed_restaurant_receipts(db, restaurant.id).filter(
+            Payment.date >= period_start,
+            Payment.date <= period_end,
+        ).with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
+        for restaurant in restaurants
+    )
     total_outstanding = total_sales - total_collected
     collection_rate = (total_collected / total_sales * 100) if total_sales > 0 else 0
     
     # Restaurant breakdown
     restaurant_breakdown = []
-    restaurants = db.query(Restaurant).all()
-    
     for restaurant in restaurants:
-        restaurant_invoices = [inv for inv in invoices if inv.restaurant_id == restaurant.id]
-        if restaurant_invoices:
+        restaurant_invoices = invoices_by_restaurant[restaurant.id]
+        restaurant_payments = completed_restaurant_receipts(db, restaurant.id).filter(
+            Payment.date >= period_start,
+            Payment.date <= period_end,
+        ).with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
+        if restaurant_invoices or restaurant_payments:
             restaurant_sales = sum(inv.grand_total for inv in restaurant_invoices)
-            restaurant_collected = sum(inv.amount_paid for inv in restaurant_invoices)
+            restaurant_collected = restaurant_payments
             restaurant_outstanding = restaurant_sales - restaurant_collected
             
             restaurant_breakdown.append({

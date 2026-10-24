@@ -24,7 +24,9 @@ from backend.models.customer import RetailCustomer
 from backend.models.product import Product
 from backend.models.stock_movement import StockMovement, MovementType
 from backend.models.user import User
-from backend.schemas.order import OrderCreate, OrderUpdate, OrderResponse
+from backend.models.invoice import Invoice, InvoiceItem
+from backend.models.payment import Payment, PaymentStatus, PaymentType
+from backend.schemas.order import OrderCreate, OrderUpdate, OrderResponse, OrderItemCreate
 from backend.auth.security import get_current_active_user, require_manager_or_admin
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"], dependencies=[Depends(require_manager_or_admin())])
@@ -51,6 +53,8 @@ async def create_order(
     
     # Verify customer exists
     if order_data.customer_type == CustomerType.RESTAURANT:
+        if not order_data.restaurant_id or order_data.customer_id is not None:
+            raise HTTPException(status_code=400, detail="Choose exactly one restaurant for a restaurant order")
         customer = db.query(Restaurant).filter(Restaurant.id == order_data.restaurant_id).first()
         if not customer:
             raise HTTPException(
@@ -58,6 +62,8 @@ async def create_order(
                 detail="Restaurant not found"
             )
     else:
+        if not order_data.customer_id or order_data.restaurant_id is not None:
+            raise HTTPException(status_code=400, detail="Choose exactly one retail customer for a retail order")
         customer = db.query(RetailCustomer).filter(RetailCustomer.id == order_data.customer_id).first()
         if not customer:
             raise HTTPException(
@@ -343,9 +349,96 @@ async def update_order(
         )
     
     update_data = order_data.model_dump(exclude_unset=True)
+    items_data = update_data.pop("items", None)
+    if items_data is not None:
+        items_data = [OrderItemCreate(**item) if isinstance(item, dict) else item for item in items_data]
+    if items_data is None and ("discount" in update_data or "tax" in update_data):
+        items_data = [OrderItemCreate(
+            id=item.id, product_id=item.product_id, quantity=item.quantity, unit=item.unit,
+            selling_price=item.selling_price, discount=item.discount or 0, tax=item.tax or 0,
+        ) for item in order.items]
+    if items_data is not None and order.order_status in {OrderStatus.DELIVERED, OrderStatus.CANCELLED}:
+        incoming = {item.id: item for item in items_data}
+        current = {item.id: item for item in order.items}
+        changed = set(incoming) != set(current) or any(
+            (item.product_id, item.quantity, item.unit, item.selling_price, item.discount, item.tax)
+            != (current[item_id].product_id, current[item_id].quantity, current[item_id].unit,
+                current[item_id].selling_price, current[item_id].discount, current[item_id].tax)
+            for item_id, item in incoming.items() if item_id in current
+        )
+        if changed:
+            raise HTTPException(status_code=400, detail="Delivered or cancelled order items cannot be edited")
+
+    if items_data is not None:
+        subtotal = item_discounts = item_taxes = 0.0
+        existing_items = {item.id: item for item in order.items}
+        retained_ids = set()
+        for item_data in items_data:
+            if item_data.discount > item_data.quantity * item_data.selling_price:
+                raise HTTPException(status_code=400, detail="An order line discount cannot exceed its line subtotal")
+            if not db.query(Product).filter(Product.id == item_data.product_id).first():
+                raise HTTPException(status_code=400, detail=f"Product with ID {item_data.product_id} not found")
+            line_total = round(item_data.quantity * item_data.selling_price - item_data.discount + item_data.tax, 2)
+            subtotal += item_data.quantity * item_data.selling_price
+            item_discounts += item_data.discount
+            item_taxes += item_data.tax
+            if item_data.id is not None:
+                item = existing_items.get(item_data.id)
+                if not item:
+                    raise HTTPException(status_code=400, detail="An order item does not belong to this order")
+                retained_ids.add(item.id)
+            else:
+                item = SalesOrderItem(order_id=order.id)
+                db.add(item)
+            item.product_id = item_data.product_id
+            item.quantity = item_data.quantity
+            item.unit = item_data.unit
+            item.selling_price = item_data.selling_price
+            item.discount = item_data.discount
+            item.tax = item_data.tax
+            item.total = line_total
+        for item_id, item in existing_items.items():
+            if item_id not in retained_ids:
+                db.delete(item)
+        discount = update_data.get("discount", order.discount or 0)
+        tax = update_data.get("tax", order.tax or 0)
+        if item_discounts + discount > subtotal:
+            raise HTTPException(status_code=400, detail="Total discounts cannot exceed the order subtotal")
+        total = round(subtotal - item_discounts - discount + item_taxes + tax, 2)
+        if total <= 0:
+            raise HTTPException(status_code=400, detail="Order total must be greater than zero")
+        order.subtotal, order.total = subtotal, total
+        order.discount, order.tax = discount, tax
+        linked_invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
+        if linked_invoice:
+            linked_invoice.subtotal = subtotal
+            linked_invoice.discount = discount + item_discounts
+            linked_invoice.tax = tax + item_taxes
+            linked_invoice.grand_total = total
+            linked_invoice.due_date = update_data.get("delivery_date", order.delivery_date) or update_data.get("order_date", order.order_date)
+            for invoice_item in list(linked_invoice.items):
+                db.delete(invoice_item)
+            db.flush()
+            from backend.models.invoice import InvoiceItem
+            for item_data in items_data:
+                db.add(InvoiceItem(
+                    invoice_id=linked_invoice.id, product_id=item_data.product_id,
+                    quantity=item_data.quantity, unit=item_data.unit, rate=item_data.selling_price,
+                    discount=item_data.discount, tax=item_data.tax,
+                    amount=round(item_data.quantity * item_data.selling_price - item_data.discount + item_data.tax, 2),
+                ))
+            paid = db.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+                Payment.invoice_id == linked_invoice.id,
+                Payment.payment_type == PaymentType.RECEIPT,
+                Payment.status == PaymentStatus.COMPLETED,
+            ).scalar() or 0
+            linked_invoice.amount_paid = paid
+            linked_invoice.balance_due = max(0, total - paid)
+            linked_invoice.payment_status = "unpaid" if paid <= 0 else "partially_paid" if paid < total else "paid"
+            order.payment_status = linked_invoice.payment_status
+
     for field, value in update_data.items():
         setattr(order, field, value)
-    
     order.updated_at = func.now()
     db.commit()
     db.refresh(order)
@@ -481,9 +574,13 @@ async def delete_order(
         )
     
     # Delete linked invoice if any
-    from backend.models.invoice import Invoice
     linked_invoice = db.query(Invoice).filter(Invoice.order_id == order.id).first()
     if linked_invoice:
+        # Keep completed receipts in the restaurant ledger; they become unallocated
+        # restaurant-level receipts when their linked invoice is deleted.
+        db.query(Payment).filter(Payment.invoice_id == linked_invoice.id).update(
+            {Payment.invoice_id: None}, synchronize_session=False
+        )
         db.delete(linked_invoice)
         
     db.delete(order)

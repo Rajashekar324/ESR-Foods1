@@ -49,16 +49,16 @@ class ProductCreate(BaseModel):
     grade: Optional[str] = None
     size: Optional[str] = None
     unit: UnitType
-    weight_per_packet: Optional[float] = None
+    weight_per_packet: Optional[float] = Field(None, gt=0)
     packaging_type: Optional[str] = None
     is_frozen: bool = True
     purchase_price: float = Field(..., gt=0)
     selling_price: float = Field(..., gt=0)
-    wholesale_price: Optional[float] = None
-    retail_price: Optional[float] = None
-    minimum_stock: float = 10
-    maximum_stock: Optional[float] = None
-    reorder_level: float = 20
+    wholesale_price: Optional[float] = Field(None, ge=0)
+    retail_price: Optional[float] = Field(None, ge=0)
+    minimum_stock: float = Field(10, ge=0)
+    maximum_stock: Optional[float] = Field(None, ge=0)
+    reorder_level: float = Field(20, ge=0)
     preferred_vendor_id: Optional[int] = None
     storage_location: Optional[str] = None
     manufacturing_date: Optional[datetime] = None
@@ -76,16 +76,16 @@ class ProductUpdate(BaseModel):
     grade: Optional[str] = None
     size: Optional[str] = None
     unit: Optional[UnitType] = None
-    weight_per_packet: Optional[float] = None
+    weight_per_packet: Optional[float] = Field(None, gt=0)
     packaging_type: Optional[str] = None
     is_frozen: Optional[bool] = None
-    purchase_price: Optional[float] = None
-    selling_price: Optional[float] = None
-    wholesale_price: Optional[float] = None
-    retail_price: Optional[float] = None
-    minimum_stock: Optional[float] = None
-    maximum_stock: Optional[float] = None
-    reorder_level: Optional[float] = None
+    purchase_price: Optional[float] = Field(None, gt=0)
+    selling_price: Optional[float] = Field(None, gt=0)
+    wholesale_price: Optional[float] = Field(None, ge=0)
+    retail_price: Optional[float] = Field(None, ge=0)
+    minimum_stock: Optional[float] = Field(None, ge=0)
+    maximum_stock: Optional[float] = Field(None, ge=0)
+    reorder_level: Optional[float] = Field(None, ge=0)
     preferred_vendor_id: Optional[int] = None
     storage_location: Optional[str] = None
     manufacturing_date: Optional[datetime] = None

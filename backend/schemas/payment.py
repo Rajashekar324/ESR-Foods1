@@ -52,6 +52,16 @@ class PaymentStatusUpdate(BaseModel):
     status: str
 
 
+class PaymentUpdate(BaseModel):
+    date: Optional[datetime] = None
+    invoice_id: Optional[int] = None
+    amount: Optional[float] = Field(None, gt=0)
+    payment_method: Optional[PaymentMethod] = None
+    status: Optional[str] = None
+    transaction_reference: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class PaymentResponse(BaseModel):
     id: int
     payment_code: str

@@ -220,7 +220,7 @@ function addInvoiceItem(itemData = null) {
     const itemIndex = invoiceItemCount;
     
     const itemHtml = `
-        <div class="invoice-item" data-index="${itemIndex}" style="display: grid; grid-template-columns: 2fr .7fr .8fr .9fr .9fr .9fr .9fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="invoice-item" data-index="${itemIndex}">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -230,7 +230,7 @@ function addInvoiceItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-input item-quantity" step="0.1" min="0.01" required>
+                <input type="number" class="form-input item-quantity" step="0.01" min="0.01" required>
             </div>
             <div>
                 <label class="form-label">Unit</label>

@@ -16,6 +16,11 @@ from backend.models.payment import Payment, PaymentType
 from backend.models.expense import Expense
 from backend.models.user import User
 from backend.auth.security import get_current_active_user, require_manager_or_admin
+from backend.services.restaurant_balance import (
+    completed_restaurant_receipts,
+    finalized_restaurant_invoices,
+    restaurant_balance_totals,
+)
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"], dependencies=[Depends(require_manager_or_admin())])
 
@@ -31,21 +36,30 @@ async def get_sales_report(
     """
     Get sales report for date range
     """
-    query = db.query(Invoice).filter(
-        and_(
+    if restaurant_id:
+        invoices = finalized_restaurant_invoices(db, restaurant_id).filter(
             Invoice.invoice_date >= start_date,
             Invoice.invoice_date <= end_date,
-            Invoice.is_finalized == True
-        )
-    )
-    
-    if restaurant_id:
-        query = query.filter(Invoice.restaurant_id == restaurant_id)
-    
-    invoices = query.all()
-    
+        ).all()
+        restaurants_for_receipts = [restaurant_id]
+    else:
+        restaurants_for_receipts = [row[0] for row in db.query(Restaurant.id).all()]
+        invoices = [
+            invoice
+            for current_restaurant_id in restaurants_for_receipts
+            for invoice in finalized_restaurant_invoices(db, current_restaurant_id).filter(
+                Invoice.invoice_date >= start_date,
+                Invoice.invoice_date <= end_date,
+            ).all()
+        ]
     total_sales = sum(inv.grand_total for inv in invoices)
-    total_collected = sum(inv.amount_paid for inv in invoices)
+    total_collected = sum(
+        completed_restaurant_receipts(db, current_restaurant_id).filter(
+            Payment.date >= start_date,
+            Payment.date <= end_date,
+        ).with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
+        for current_restaurant_id in restaurants_for_receipts
+    )
     outstanding = total_sales - total_collected
     
     return {
@@ -158,23 +172,10 @@ async def get_restaurants_report(
     
     report_data = []
     for restaurant in restaurants:
-        # Calculate totals
-        total_sales = db.query(func.sum(Invoice.grand_total)).filter(
-            and_(
-                Invoice.restaurant_id == restaurant.id,
-                Invoice.is_finalized == True
-            )
-        ).scalar() or 0
-        
-        total_payments = db.query(func.sum(Payment.amount)).filter(
-            and_(
-                Payment.restaurant_id == restaurant.id,
-                Payment.payment_type == PaymentType.RECEIPT,
-                Payment.status == "completed"
-            )
-        ).scalar() or 0
-        
-        outstanding = max(0.0, total_sales - total_payments)
+        balance = restaurant_balance_totals(db, restaurant.id)
+        total_sales = balance["total_debits"]
+        total_payments = balance["total_receipts"]
+        outstanding = balance["outstanding"]
         
         order_count = db.query(SalesOrder).filter(
             SalesOrder.restaurant_id == restaurant.id
@@ -220,43 +221,25 @@ async def get_15_day_summary(
     
     for restaurant in restaurants:
         # Get sales in period
-        period_sales = db.query(func.sum(Invoice.grand_total)).filter(
-            and_(
-                Invoice.restaurant_id == restaurant.id,
-                Invoice.invoice_date >= start_date,
-                Invoice.invoice_date <= end_date,
-                Invoice.is_finalized == True
-            )
-        ).scalar() or 0
+        period_sales = finalized_restaurant_invoices(db, restaurant.id).filter(
+            Invoice.invoice_date >= start_date,
+            Invoice.invoice_date <= end_date,
+        ).with_entities(func.coalesce(func.sum(Invoice.grand_total), 0)).scalar() or 0
         
         # Get payments in period
-        period_payments = db.query(func.sum(Payment.amount)).filter(
-            and_(
-                Payment.restaurant_id == restaurant.id,
-                Payment.date >= start_date,
-                Payment.date <= end_date,
-                Payment.payment_type == PaymentType.RECEIPT,
-                Payment.status == "completed"
-            )
-        ).scalar() or 0
+        period_payments = completed_restaurant_receipts(db, restaurant.id).filter(
+            Payment.date >= start_date,
+            Payment.date <= end_date,
+        ).with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
         
         # Calculate opening balance (before period)
-        opening_balance = db.query(func.sum(Invoice.grand_total)).filter(
-            and_(
-                Invoice.restaurant_id == restaurant.id,
-                Invoice.invoice_date < start_date,
-                Invoice.is_finalized == True
-            )
-        ).scalar() or 0
+        opening_balance = finalized_restaurant_invoices(db, restaurant.id).filter(
+            Invoice.invoice_date < start_date,
+        ).with_entities(func.coalesce(func.sum(Invoice.grand_total), 0)).scalar() or 0
         
-        opening_payments = db.query(func.sum(Payment.amount)).filter(
-            and_(
-                Payment.restaurant_id == restaurant.id,
-                Payment.date < start_date,
-                Payment.payment_type == PaymentType.RECEIPT,
-                Payment.status == "completed"
-            )
-        ).scalar() or 0
+        opening_payments = completed_restaurant_receipts(db, restaurant.id).filter(
+            Payment.date < start_date,
+        ).with_entities(func.coalesce(func.sum(Payment.amount), 0)).scalar() or 0
         
         opening_balance = max(0.0, opening_balance - opening_payments)
         

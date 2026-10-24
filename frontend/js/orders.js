@@ -261,7 +261,8 @@ function addOrderItem(itemData = null) {
     const itemIndex = orderItemCount;
     
     const itemHtml = `
-        <div class="order-item" data-index="${itemIndex}" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 10px; align-items: end;">
+        <div class="order-item" data-index="${itemIndex}">
+            <input type="hidden" class="item-id" value="${itemData?.id || ''}">
             <div>
                 <label class="form-label">Product</label>
                 <select class="form-select item-product" required>
@@ -271,7 +272,7 @@ function addOrderItem(itemData = null) {
             </div>
             <div>
                 <label class="form-label">Quantity</label>
-                <input type="number" class="form-input item-quantity" step="0.1" min="0.1" required placeholder="0.0">
+                <input type="number" class="form-input item-quantity" step="0.01" min="0.01" required placeholder="0.00">
             </div>
             <div>
                 <label class="form-label">Unit</label>
@@ -435,7 +436,8 @@ async function handleOrderSubmit(event) {
             !Number.isFinite(selling_price) || selling_price <= 0 || !Number.isFinite(total)) {
             return;
         }
-        items.push({ product_id, quantity, unit: unit.trim(), selling_price, discount: 0, tax: 0, total });
+        const id = parseInt(itemRow.querySelector('.item-id').value, 10);
+        items.push({ ...(id ? { id } : {}), product_id, quantity, unit: unit.trim(), selling_price, discount: 0, tax: 0, total });
     });
     
     if (items.length === 0 || items.length !== document.querySelectorAll('.order-item').length) {

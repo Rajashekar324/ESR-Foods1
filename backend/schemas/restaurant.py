@@ -28,7 +28,7 @@ class RestaurantCreate(BaseModel):
     address: Optional[str] = None
     area: Optional[str] = None
     gst_number: Optional[str] = None
-    credit_limit: float = 0
+    credit_limit: float = Field(0, ge=0)
     payment_terms: Optional[str] = None
     assigned_salesperson: Optional[str] = None
     notes: Optional[str] = None
@@ -46,7 +46,7 @@ class RestaurantUpdate(BaseModel):
     address: Optional[str] = None
     area: Optional[str] = None
     gst_number: Optional[str] = None
-    credit_limit: Optional[float] = None
+    credit_limit: Optional[float] = Field(None, ge=0)
     payment_terms: Optional[str] = None
     assigned_salesperson: Optional[str] = None
     status: Optional[bool] = None

@@ -8,6 +8,7 @@ let allCustomers = [];
 let allInvoices = [];
 let allPurchases = [];
 let selectedVendorId = null;
+let editingPaymentInvoiceId = null;
 
 // Initialize payments page
 async function initPaymentsPage() {
@@ -141,6 +142,7 @@ function renderPaymentsTable(payments) {
                 </td>
                 <td>${escapeHtml(payment.transaction_reference || '-')}</td>
                 <td>
+                    <button class="btn btn-sm btn-outline" onclick="editPayment(${payment.id})">Edit</button>
                     <button class="btn btn-sm btn-danger" onclick="reversePayment(${payment.id})">Reverse</button>
                 </td>
             </tr>
@@ -186,6 +188,7 @@ function setupEventListeners() {
         loadSelectedRestaurantBalance();
     });
     document.getElementById('paymentInvoice').addEventListener('change', updateInvoiceBalanceLimit);
+    document.getElementById('paymentAllocation').addEventListener('change', updatePaymentAllocationFields);
 }
 
 // Update form fields for received receipts and outgoing payments.
@@ -209,15 +212,18 @@ function handlePaymentToChange() {
     document.getElementById('operationsFields').style.display = !isReceipt && source === 'operations' ? 'block' : 'none';
     document.getElementById('paymentPurchaseField').style.display = !isReceipt && source === 'vendor' ? 'block' : 'none';
     document.getElementById('paymentInvoiceSelectField').style.display = isReceipt && source === 'restaurant' ? 'block' : 'none';
+    document.getElementById('paymentAllocationField').style.display = isReceipt && source === 'restaurant' ? 'block' : 'none';
     document.getElementById('paymentVendor').required = source === 'vendor';
     document.getElementById('paymentRestaurant').required = isReceipt && source === 'restaurant';
     document.getElementById('paymentCustomer').required = isReceipt && source === 'customer';
-    document.getElementById('paymentInvoice').required = isReceipt && source === 'restaurant';
+    document.getElementById('paymentInvoice').required = false;
     document.getElementById('paymentPaidTo').required = !isReceipt && source === 'operations';
     document.getElementById('paymentPurchase').value = '';
     document.getElementById('paymentInvoice').value = '';
+    document.getElementById('paymentAllocation').value = 'lumpsum';
     document.getElementById('savePaymentButton').textContent = isReceipt ? 'Save Receipt' : 'Save Payment';
     updateInvoiceOptions();
+    updatePaymentAllocationFields();
     if (isReceipt && source === 'restaurant') loadSelectedRestaurantBalance();
     else document.getElementById('paymentRestaurantBalance').textContent = '';
 }
@@ -225,10 +231,23 @@ function handlePaymentToChange() {
 function updateInvoiceOptions() {
     const restaurantId = document.getElementById('paymentRestaurant').value;
     const options = ['<option value="">Select Invoice</option>', ...allInvoices
-        .filter(invoice => invoice.balance_due > 0 && (!restaurantId || invoice.restaurant_id === parseInt(restaurantId)))
+        .filter(invoice => (invoice.balance_due > 0 || invoice.id === editingPaymentInvoiceId) && (!restaurantId || invoice.restaurant_id === parseInt(restaurantId)))
         .map(invoice => `<option value="${invoice.id}">${escapeHtml(invoice.invoice_number)} · ${formatCurrency(invoice.balance_due)} due</option>`)
     ];
-    document.getElementById('paymentInvoice').innerHTML = options.join('');
+    const invoiceSelect = document.getElementById('paymentInvoice');
+    const selectedInvoiceId = invoiceSelect.value;
+    invoiceSelect.innerHTML = options.join('');
+    if (selectedInvoiceId && [...invoiceSelect.options].some(option => option.value === selectedInvoiceId)) invoiceSelect.value = selectedInvoiceId;
+    updateInvoiceBalanceLimit();
+}
+
+function updatePaymentAllocationFields() {
+    const invoiceAllocation = document.getElementById('paymentDirection').value === 'receipt'
+        && document.getElementById('paymentSource').value === 'restaurant'
+        && document.getElementById('paymentAllocation').value === 'invoice';
+    document.getElementById('paymentInvoiceSelectField').style.display = invoiceAllocation ? 'block' : 'none';
+    document.getElementById('paymentInvoice').required = invoiceAllocation;
+    if (!invoiceAllocation) document.getElementById('paymentInvoice').value = '';
     updateInvoiceBalanceLimit();
 }
 
@@ -238,12 +257,13 @@ function updateInvoiceBalanceLimit() {
         && document.getElementById('paymentSource').value === 'restaurant';
     const invoiceId = parseInt(document.getElementById('paymentInvoice').value, 10);
     const invoice = allInvoices.find(item => item.id === invoiceId);
-    if (isRestaurantReceipt && invoice) {
+    const invoiceAllocation = document.getElementById('paymentAllocation').value === 'invoice';
+    if (isRestaurantReceipt && invoiceAllocation && invoice) {
         amountInput.max = String(invoice.balance_due);
         document.getElementById('paymentInvoiceBalanceHint').textContent = `Invoice balance due: ${formatCurrency(invoice.balance_due)}. A completed receipt reduces this and the restaurant's outstanding balance.`;
     } else {
         amountInput.removeAttribute('max');
-        document.getElementById('paymentInvoiceBalanceHint').textContent = 'The receipt reduces the selected invoice and restaurant outstanding balance.';
+        document.getElementById('paymentInvoiceBalanceHint').textContent = 'Lumpsum receipts reduce the restaurant outstanding balance without being assigned to an invoice.';
     }
 }
 
@@ -271,6 +291,10 @@ function openPaymentModal(direction = 'payment', source = '') {
     
     // Reset form
     form.reset();
+    editingPaymentInvoiceId = null;
+    document.getElementById('paymentDirection').disabled = false;
+    document.getElementById('paymentSource').disabled = false;
+    ['paymentRestaurant', 'paymentCustomer', 'paymentVendor', 'paymentPurchase'].forEach(id => { document.getElementById(id).disabled = false; });
     document.getElementById('paymentId').value = '';
     
     // Set default date
@@ -290,6 +314,45 @@ function openPaymentModal(direction = 'payment', source = '') {
     document.getElementById('paymentAmount').removeAttribute('max');
     
     modal.classList.add('show');
+}
+
+async function editPayment(id) {
+    try {
+        const payment = await paymentsAPI.getById(id);
+        const source = payment.restaurant_id ? 'restaurant' : payment.customer_id ? 'customer' : payment.vendor_id ? 'vendor' : 'operations';
+        openPaymentModal(payment.payment_type, source);
+        editingPaymentInvoiceId = payment.invoice_id;
+        document.getElementById('paymentModalTitle').textContent = 'Edit Payment';
+        document.getElementById('savePaymentButton').textContent = 'Update Payment';
+        document.getElementById('paymentId').value = payment.id;
+        document.getElementById('paymentCode').value = payment.payment_code;
+        document.getElementById('paymentDate').value = payment.date.split('T')[0];
+        document.getElementById('paymentStatus').value = payment.status;
+        document.getElementById('paymentAmount').value = payment.amount;
+        document.getElementById('paymentMethod').value = payment.payment_method;
+        document.getElementById('paymentReference').value = payment.transaction_reference || '';
+        document.getElementById('paymentNotes').value = payment.notes || '';
+        document.getElementById('paymentRestaurant').value = payment.restaurant_id || '';
+        document.getElementById('paymentCustomer').value = payment.customer_id || '';
+        document.getElementById('paymentVendor').value = payment.vendor_id || '';
+        document.getElementById('paymentCategory').value = payment.category || 'other';
+        document.getElementById('paymentPaidTo').value = payment.paid_to || '';
+        document.getElementById('paymentPurchase').value = payment.purchase_id || '';
+        document.getElementById('paymentDirection').disabled = true;
+        document.getElementById('paymentSource').disabled = true;
+        ['paymentRestaurant', 'paymentCustomer', 'paymentVendor', 'paymentPurchase'].forEach(fieldId => { document.getElementById(fieldId).disabled = true; });
+        updateInvoiceOptions();
+        if (payment.invoice_id) {
+            document.getElementById('paymentAllocation').value = 'invoice';
+            document.getElementById('paymentInvoice').value = payment.invoice_id;
+        }
+        updatePaymentAllocationFields();
+        updateInvoiceBalanceLimit();
+        document.getElementById('paymentAmount').removeAttribute('max');
+        document.getElementById('paymentModal').classList.add('show');
+    } catch (error) {
+        showToast('Could not load payment: ' + (error.message || ''), 'error');
+    }
 }
 
 // Close payment modal
@@ -329,7 +392,7 @@ async function handlePaymentSubmit(event) {
         payment_type: isReceipt ? 'receipt' : 'payment',
         date: toIsoDateTime(document.getElementById('paymentDate').value),
         status: document.getElementById('paymentStatus').value,
-        invoice_id: isReceipt && source === 'restaurant' && document.getElementById('paymentInvoice').value ? parseInt(document.getElementById('paymentInvoice').value) : null,
+        invoice_id: isReceipt && source === 'restaurant' && document.getElementById('paymentAllocation').value === 'invoice' && document.getElementById('paymentInvoice').value ? parseInt(document.getElementById('paymentInvoice').value) : null,
         purchase_id: !isReceipt && source === 'vendor' && document.getElementById('paymentPurchase').value ? parseInt(document.getElementById('paymentPurchase').value) : null,
         restaurant_id: isReceipt && source === 'restaurant' ? parseInt(document.getElementById('paymentRestaurant').value) : null,
         customer_id: isReceipt && source === 'customer' ? parseInt(document.getElementById('paymentCustomer').value) : null,
@@ -343,18 +406,31 @@ async function handlePaymentSubmit(event) {
     };
     
     try {
-        await paymentsAPI.create(paymentData);
+        const paymentId = document.getElementById('paymentId').value;
+        if (paymentId) {
+            await paymentsAPI.update(parseInt(paymentId), {
+                date: paymentData.date,
+                invoice_id: paymentData.invoice_id,
+                amount: paymentData.amount,
+                payment_method: paymentData.payment_method,
+                status: paymentData.status,
+                transaction_reference: paymentData.transaction_reference,
+                notes: paymentData.notes
+            });
+        } else {
+            await paymentsAPI.create(paymentData);
+        }
         closePaymentModal();
         if (isReceipt && source === 'restaurant') {
             try {
                 const summary = await restaurantsAPI.getSummary(paymentData.restaurant_id);
-                showToast(`Receipt recorded. Restaurant balance is now ${formatCurrency(summary.outstanding)}.`, 'success');
+                showToast(`${paymentId ? 'Receipt updated' : 'Receipt recorded'}. Restaurant balance is now ${formatCurrency(summary.outstanding)}.`, 'success');
             } catch (balanceError) {
                 console.error('Receipt saved but balance refresh failed:', balanceError);
                 showToast('Receipt recorded successfully. Refresh the restaurant page to view its latest balance.', 'success');
             }
         } else {
-            showToast(isReceipt ? 'Receipt recorded successfully' : 'Payment saved successfully', 'success');
+            showToast(paymentId ? 'Payment updated successfully' : isReceipt ? 'Receipt recorded successfully' : 'Payment saved successfully', 'success');
         }
         await loadInvoicesForDropdown();
         await loadPayments();
