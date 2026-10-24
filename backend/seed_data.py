@@ -12,7 +12,7 @@ from backend.database import SessionLocal, init_db
 from backend.models.user import User, Role
 from backend.models.setting import Setting
 from backend.models.product import Category
-from backend.auth.security import hash_password, verify_password
+from backend.auth.security import hash_password
 
 logger = logging.getLogger(__name__)
 
@@ -71,48 +71,36 @@ def seed_roles(db: Session):
 
 
 def seed_users(db: Session):
-    """Create or reconcile the single configured bootstrap Admin account."""
+    """Create a bootstrap Admin only when no administrator account exists."""
     admin_role = db.query(Role).filter(Role.name == "admin").first()
     if not admin_role:
         raise RuntimeError("Admin role is missing; seed roles before creating the bootstrap Admin.")
 
     username = os.getenv("ADMIN_USERNAME") or os.getenv("ESR_ADMIN_USERNAME", "admin")
     email = os.getenv("ADMIN_EMAIL") or os.getenv("ESR_ADMIN_EMAIL", "admin@esrfoods.com")
-    password = os.getenv("ADMIN_PASSWORD") or os.getenv("ESR_ADMIN_PASSWORD")
-    if not password:
-        raise RuntimeError("Set ADMIN_EMAIL and ADMIN_PASSWORD in the deployment environment to bootstrap the Admin account.")
-    validate_password(password)
-
     by_username = db.query(User).filter(User.username == username).first()
     by_email = db.query(User).filter(User.email == email).first()
     if by_username and by_email and by_username.id != by_email.id:
         raise RuntimeError("ADMIN_USERNAME and ADMIN_EMAIL belong to different existing accounts.")
 
-    admin_user = by_username or by_email
-    if admin_user and admin_user.role_id != admin_role.id:
+    configured_user = by_username or by_email
+    if configured_user and configured_user.role_id != admin_role.id:
         raise RuntimeError("Configured Admin username/email belongs to a non-admin account.")
 
-    # Reuse an existing administrator if the configured identifiers changed;
-    # never create a second bootstrap Admin on redeploy.
-    if not admin_user:
-        admin_user = db.query(User).filter(User.role_id == admin_role.id).order_by(User.id).first()
-
-    if admin_user:
-        conflicting_email = db.query(User).filter(User.email == email, User.id != admin_user.id).first()
-        if conflicting_email:
-            raise RuntimeError("ADMIN_EMAIL is already assigned to a different account.")
-        admin_user.email = email
-        admin_user.is_active = True
-        admin_user.approval_status = "approved"
-        changed_password = not verify_password(password, admin_user.hashed_password)
-        if changed_password:
-            admin_user.hashed_password = hash_password(password)
-            admin_user.token_version += 1
-            admin_user.failed_login_attempts = 0
-            admin_user.locked_until = None
-        db.commit()
-        logger.info("Bootstrap Admin reconciled (user_id=%s, password_updated=%s).", admin_user.id, changed_password)
+    existing_admin = configured_user or db.query(User).filter(
+        User.role_id == admin_role.id
+    ).order_by(User.id).first()
+    if existing_admin:
+        logger.info("Existing Admin preserved during bootstrap (user_id=%s).", existing_admin.id)
         return
+
+    password = os.getenv("ADMIN_PASSWORD") or os.getenv("ESR_ADMIN_PASSWORD")
+    if not password:
+        raise RuntimeError("Set ADMIN_EMAIL and ADMIN_PASSWORD to create the initial Admin account.")
+    validate_password(password)
+
+    if by_username or by_email:
+        raise RuntimeError("Configured Admin username/email is already assigned to a non-admin account.")
 
     db.add(User(
         username=username,

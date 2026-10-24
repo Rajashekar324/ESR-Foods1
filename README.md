@@ -95,9 +95,9 @@ A comprehensive ERP + CRM + Inventory + Billing + Restaurant Management System f
 
    Product, vendor, restaurant, customer, purchase, and invoice data must be entered in the application; the seed script does not create sample business records. The SQLite path above is resolved from the project directory even when the app is launched from a different working directory.
 
-   Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` for the bootstrap Admin. Existing `ESR_ADMIN_*` variables are still accepted for local compatibility. The seed operation is idempotent: it reuses the existing Admin and reconciles its email/password without creating a duplicate or deleting business data. Manager and Staff accounts are created by an Admin or through registration and require Admin approval.
+   Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` for the initial bootstrap Admin. Existing `ESR_ADMIN_*` variables are still accepted for local compatibility. The seed operation is idempotent: it preserves an existing Admin's credentials and status, and only creates an account when no Admin exists. Manager and Staff accounts are created by an Admin or through registration and require Admin approval.
 
-   Keep `DATABASE_URL` set to `sqlite:///esr_foods.db` locally unless you intentionally want a different database. Relative SQLite paths resolve from the project directory, not the shell's current directory. If Admin sign-in fails, check that `.env` is present in the project root and verify `ADMIN_EMAIL` and `ADMIN_PASSWORD` (legacy `ESR_ADMIN_*` names are also supported). Rerun the seed command to reconcile the Admin password without clearing business records.
+   Keep `DATABASE_URL` set to `sqlite:///esr_foods.db` locally unless you intentionally want a different database. Relative SQLite paths resolve from the project directory, not the shell's current directory. If Admin sign-in fails, check that `.env` is present in the project root. Rerunning the seed command will not reset an existing Admin's password; use the application's account-management process to change credentials.
 
 ## Deploying to Render
 
@@ -111,10 +111,10 @@ A comprehensive ERP + CRM + Inventory + Billing + Restaurant Management System f
    - `SECRET_KEY` = generate a unique random value of at least 32 characters in Render; do not reuse the example value
    - `COOKIE_SECURE` = `true`
    - `ALLOWED_ORIGINS` = the exact deployed origin, for example `https://your-service-name.onrender.com`
-4. Deploy. On each start, the app creates/migrates tables, seeds roles/settings/categories, and creates or reconciles the bootstrap Admin. It logs the resolved SQLite path and authentication failure reason, never passwords.
+4. Deploy. On each start, the app initializes the legacy schema, seeds roles/settings/categories, and creates the bootstrap Admin only if one does not already exist. It logs the resolved SQLite path and authentication failure reason, never passwords.
 5. Visit `https://your-service-name.onrender.com/`, sign in using `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and confirm the dashboard loads. A successful login sets an HttpOnly secure session cookie.
 
-Do **not** delete or recreate an existing SQLite database to fix credentials. The startup bootstrap reuses the existing Admin, updates its password hash from `ADMIN_PASSWORD` when necessary, and preserves business records. Check Render logs for the reported SQLite path: it should be `/var/data/esr_foods.db`.
+Do **not** delete or recreate an existing SQLite database to fix credentials. The startup bootstrap preserves an existing Admin's email, password hash, and status, as well as business records. Check Render logs for the reported SQLite path: it should be `/var/data/esr_foods.db`.
 
 ## Running the Application
 

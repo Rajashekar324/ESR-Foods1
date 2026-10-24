@@ -3,7 +3,7 @@ Dashboard router
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, desc
+from sqlalchemy import Integer, String, and_, case, cast, desc, extract, func, literal
 from datetime import datetime, timedelta
 from backend.database import get_db
 from backend.models.invoice import Invoice, InvoiceItem
@@ -18,6 +18,16 @@ from backend.schemas.dashboard import DashboardSummary, DashboardCharts, Fifteen
 from backend.auth.security import get_current_active_user, require_manager_or_admin
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"], dependencies=[Depends(require_manager_or_admin())])
+
+
+def _invoice_month_expression(invoice_date):
+    year = cast(cast(extract("year", invoice_date), Integer), String)
+    month_number = cast(cast(extract("month", invoice_date), Integer), String)
+    month_value = cast(extract("month", invoice_date), Integer)
+    return year + literal("-") + case(
+        (month_value < 10, literal("0") + month_number),
+        else_=month_number,
+    )
 
 
 @router.get("/summary", response_model=DashboardSummary)
@@ -115,19 +125,16 @@ async def get_dashboard_charts(
     """
     # Sales trend (last 6 months)
     six_months_ago = datetime.utcnow() - timedelta(days=180)
+    invoice_month = _invoice_month_expression(Invoice.invoice_date)
     sales_trend = db.query(
-        func.strftime('%Y-%m', Invoice.invoice_date).label('month'),
+        invoice_month.label('month'),
         func.sum(Invoice.grand_total).label('sales')
     ).filter(
         and_(
             Invoice.invoice_date >= six_months_ago,
             Invoice.is_finalized == True
         )
-    ).group_by(
-        func.strftime('%Y-%m', Invoice.invoice_date)
-    ).order_by(
-        func.strftime('%Y-%m', Invoice.invoice_date)
-    ).all()
+    ).group_by(invoice_month).order_by(invoice_month).all()
     
     sales_trend_data = [{'month': row.month, 'sales': row.sales or 0} for row in sales_trend]
     

@@ -6,6 +6,8 @@ httpx<0.25
 
 # Database
 sqlalchemy>=2.0.40,<3.0
+psycopg[binary]>=3.2,<4.0
+alembic>=1.13,<2.0
 
 # Authentication & Security
 passlib[bcrypt]==1.7.4
