@@ -43,20 +43,25 @@ async def get_dashboard_summary(
     """
     Get dashboard summary statistics
     """
-    today = datetime.utcnow().date()
-    month_start = datetime.utcnow().replace(day=1).date()
+    now = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = today_start + timedelta(days=1)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     # Today's sales
     today_sales = db.query(func.sum(Invoice.grand_total)).filter(
         and_(
-            Invoice.invoice_date == today,
+            Invoice.invoice_date >= today_start,
+            Invoice.invoice_date < tomorrow_start,
             Invoice.is_finalized == True
         )
     ).scalar() or 0
     
     # Today's purchases
     today_purchases = db.query(func.sum(Purchase.total)).filter(
-        Purchase.purchase_date == today
+        Purchase.purchase_date >= today_start,
+        Purchase.purchase_date < tomorrow_start,
+        Purchase.status != PurchaseStatus.CANCELLED
     ).scalar() or 0
     
     # Monthly sales
@@ -91,7 +96,7 @@ async def get_dashboard_summary(
     total_stock_value = db.query(func.sum(Product.current_stock * Product.purchase_price)).scalar() or 0
     
     # Active restaurants
-    active_restaurants = db.query(Restaurant).filter(Restaurant.is_active == True).count()
+    active_restaurants = db.query(Restaurant).filter(Restaurant.status == True).count()
     
     # Low stock products
     low_stock_products = db.query(Product).filter(
