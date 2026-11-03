@@ -778,3 +778,12 @@ window.expensesAPI = expensesAPI;
 window.reportsAPI = reportsAPI;
 window.authAPI = authAPI;
 
+// Expose shared helpers explicitly for page scripts, including deployments that
+// serve these files through a static asset layer or a script loader.
+window.toIsoDateTime = toIsoDateTime;
+window.setDefaultDateRange = setDefaultDateRange;
+window.formatCurrency = formatCurrency;
+window.formatDate = formatDate;
+window.formatDateTime = formatDateTime;
+window.showToast = showToast;
+
