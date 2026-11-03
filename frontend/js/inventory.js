@@ -10,6 +10,7 @@ async function initInventoryPage() {
     if (!requireAuth()) return;
     
     try {
+        setDefaultDateRange('movementStartDate', 'movementEndDate');
         // Load summary stats
         await loadInventorySummary();
         
@@ -134,6 +135,8 @@ async function loadMovements() {
         
         const params = {};
         if (movementType) params.movement_type = movementType;
+        params.start_date = document.getElementById('movementStartDate').value;
+        params.end_date = document.getElementById('movementEndDate').value;
         
         const movements = await inventoryAPI.getMovements(params);
         renderMovementsTable(movements);
@@ -226,6 +229,8 @@ function setupEventListeners() {
     
     // Movement filter
     document.getElementById('movementTypeFilter').addEventListener('change', loadMovements);
+    document.getElementById('movementStartDate').addEventListener('change', loadMovements);
+    document.getElementById('movementEndDate').addEventListener('change', loadMovements);
     
     // Batch filter
     document.getElementById('batchStatusFilter').addEventListener('change', loadBatches);

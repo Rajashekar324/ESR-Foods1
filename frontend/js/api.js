@@ -10,6 +10,13 @@ function toIsoDateTime(value) {
     return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
 }
 
+function setDefaultDateRange(startId, endId) {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    document.getElementById(startId).value = today;
+    document.getElementById(endId).value = today;
+}
+
 // Get auth token from localStorage
 function getAuthToken() {
     return localStorage.getItem('authToken');

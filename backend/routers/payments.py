@@ -315,6 +315,8 @@ async def get_payments(
     customer_id: Optional[int] = None,
     payment_method: Optional[str] = None,
     payment_status: Optional[str] = Query(None, alias="status"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -349,6 +351,14 @@ async def get_payments(
 
     if payment_status:
         query = query.filter(Payment.status == payment_status)
+
+    if start_date:
+        query = query.filter(Payment.date >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date)
+        if len(end_date) == 10:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(Payment.date <= end_dt)
     
     payments = query.order_by(Payment.date.desc()).offset(skip).limit(limit).all()
     return payments

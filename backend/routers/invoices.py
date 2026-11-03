@@ -167,6 +167,8 @@ async def get_invoices(
     restaurant_id: Optional[int] = None,
     payment_status: Optional[str] = None,
     is_finalized: Optional[bool] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -183,6 +185,14 @@ async def get_invoices(
     
     if is_finalized is not None:
         query = query.filter(Invoice.is_finalized == is_finalized)
+
+    if start_date:
+        query = query.filter(Invoice.invoice_date >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date)
+        if len(end_date) == 10:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(Invoice.invoice_date <= end_dt)
     
     invoices = query.order_by(Invoice.invoice_date.desc()).offset(skip).limit(limit).all()
     return invoices

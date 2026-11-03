@@ -12,6 +12,7 @@ async function initOrdersPage() {
     if (!requireAuth()) return;
     
     try {
+        setDefaultDateRange('orderStartDate', 'orderEndDate');
         // Load restaurants for dropdown
         await loadRestaurantsForDropdown();
         
@@ -91,6 +92,8 @@ async function loadOrders() {
         if (customerType) params.customer_type = customerType;
         if (restaurantId) params.restaurant_id = parseInt(restaurantId);
         if (status) params.order_status = status;
+        params.start_date = document.getElementById('orderStartDate').value;
+        params.end_date = document.getElementById('orderEndDate').value;
         
         const orders = await ordersAPI.getAll(params);
         renderOrdersTable(orders);
@@ -157,6 +160,8 @@ function setupEventListeners() {
     document.getElementById('customerTypeFilter').addEventListener('change', loadOrders);
     document.getElementById('restaurantFilter').addEventListener('change', loadOrders);
     document.getElementById('statusFilter').addEventListener('change', loadOrders);
+    document.getElementById('orderStartDate').addEventListener('change', loadOrders);
+    document.getElementById('orderEndDate').addEventListener('change', loadOrders);
     
     // Order form
     document.getElementById('orderForm').addEventListener('submit', handleOrderSubmit);

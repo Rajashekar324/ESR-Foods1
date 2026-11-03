@@ -9,6 +9,7 @@ async function initExpensesPage() {
     if (!requireAuth()) return;
     
     try {
+        setDefaultDateRange('startDate', 'endDate');
         // Load expenses
         await loadExpenses();
         

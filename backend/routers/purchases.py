@@ -74,14 +74,17 @@ async def create_purchase(
         tax=tax,
         total=total,
         notes=purchase_data.notes,
-        status=PurchaseStatus.DRAFT
+        # A purchase entered here represents goods already bought and on hand.
+        # Create the stock receipt in the same transaction to keep inventory in sync.
+        status=PurchaseStatus.RECEIVED,
+        received_date=datetime.utcnow()
     )
     
     db.add(new_purchase)
     db.flush()
     
     # Create purchase items
-    for item_data in purchase_data.items:
+    for item_index, item_data in enumerate(purchase_data.items, start=1):
         # Verify product exists
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
         if not product:
@@ -102,6 +105,29 @@ async def create_purchase(
             total=item_total
         )
         db.add(purchase_item)
+        product.current_stock += item_data.quantity
+        db.add(StockMovement(
+            product_id=product.id,
+            movement_type=MovementType.PURCHASE_RECEIVED,
+            reference_id=new_purchase.id,
+            reference_type="purchase",
+            quantity=item_data.quantity,
+            unit=item_data.unit,
+            rate=item_data.rate,
+            total=item_total,
+            balance_after=product.current_stock,
+            notes=f"Received from purchase {new_purchase.purchase_code}"
+        ))
+        db.add(ProductBatch(
+            batch_number=f"BATCH-{new_purchase.purchase_code}-{item_index}",
+            product_id=product.id,
+            vendor_id=new_purchase.vendor_id,
+            purchase_date=new_purchase.purchase_date,
+            received_date=new_purchase.received_date,
+            quantity=item_data.quantity,
+            remaining_quantity=item_data.quantity,
+            purchase_rate=item_data.rate
+        ))
     
     # Auto-create payment entry for purchase
     try:
@@ -133,6 +159,8 @@ async def get_purchases(
     limit: int = Query(100, ge=1, le=500),
     vendor_id: Optional[int] = None,
     status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -146,6 +174,14 @@ async def get_purchases(
     
     if status:
         query = query.filter(Purchase.status == status)
+
+    if start_date:
+        query = query.filter(Purchase.purchase_date >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date)
+        if len(end_date) == 10:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(Purchase.purchase_date <= end_dt)
     
     purchases = query.order_by(Purchase.purchase_date.desc()).offset(skip).limit(limit).all()
     return purchases

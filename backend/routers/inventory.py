@@ -86,6 +86,8 @@ async def get_stock_movements(
     limit: int = Query(100, ge=1, le=500),
     product_id: Optional[int] = None,
     movement_type: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -99,6 +101,14 @@ async def get_stock_movements(
     
     if movement_type:
         query = query.filter(StockMovement.movement_type == movement_type)
+
+    if start_date:
+        query = query.filter(StockMovement.created_at >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date)
+        if len(end_date) == 10:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(StockMovement.created_at <= end_dt)
     
     movements = query.order_by(StockMovement.created_at.desc()).offset(skip).limit(limit).all()
     return movements
@@ -219,6 +229,20 @@ async def create_batch(
         remaining_quantity=batch_data.quantity,
         status=batch_status
     )
+
+    product.current_stock += batch_data.quantity
+    db.add(StockMovement(
+        product_id=product.id,
+        movement_type=MovementType.PURCHASE_RECEIVED,
+        reference_id=None,
+        reference_type="batch",
+        quantity=batch_data.quantity,
+        unit=product.unit,
+        rate=batch_data.purchase_rate,
+        total=batch_data.quantity * batch_data.purchase_rate,
+        balance_after=product.current_stock,
+        notes=f"Received via batch {batch_data.batch_number}"
+    ))
     
     db.add(new_batch)
     db.commit()

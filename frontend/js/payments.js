@@ -15,6 +15,7 @@ async function initPaymentsPage() {
     if (!requireAuth()) return;
     
     try {
+        setDefaultDateRange('paymentStartDate', 'paymentEndDate');
         await Promise.all([loadVendorsForDropdown(), loadRestaurantsForDropdown(), loadCustomersForDropdown(), loadPurchasesForDropdown(), loadInvoicesForDropdown()]);
         
         // Load payments
@@ -92,6 +93,8 @@ async function loadPayments() {
         if (customerId) params.customer_id = parseInt(customerId);
         if (paymentMethod) params.payment_method = paymentMethod;
         if (source) params.payment_source = source;
+        params.start_date = document.getElementById('paymentStartDate').value;
+        params.end_date = document.getElementById('paymentEndDate').value;
         const payments = await paymentsAPI.getAll(params);
         renderPaymentsTable(payments);
     } catch (error) {
@@ -177,6 +180,8 @@ function setupEventListeners() {
     document.getElementById('restaurantFilter').addEventListener('change', loadPayments);
     document.getElementById('customerFilter').addEventListener('change', loadPayments);
     document.getElementById('paymentMethodFilter').addEventListener('change', loadPayments);
+    document.getElementById('paymentStartDate').addEventListener('change', loadPayments);
+    document.getElementById('paymentEndDate').addEventListener('change', loadPayments);
     
     document.getElementById('paymentForm').addEventListener('submit', handlePaymentSubmit);
     document.getElementById('paymentPurchase').addEventListener('change', event => {

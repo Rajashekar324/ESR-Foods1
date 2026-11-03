@@ -7,11 +7,18 @@ let allProducts = [];
 let purchaseItemCount = 0;
 let presetVendorId = null;
 
+function localToday() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 // Initialize purchases page
 async function initPurchasesPage() {
     if (!requireAuth()) return;
     
     try {
+        document.getElementById('purchaseStartDate').value = localToday();
+        document.getElementById('purchaseEndDate').value = localToday();
         // Load vendors for dropdown
         await loadVendorsForDropdown();
         
@@ -81,6 +88,8 @@ async function loadPurchases() {
         const params = {};
         if (vendorId) params.vendor_id = parseInt(vendorId);
         if (status) params.status = status;
+        params.start_date = document.getElementById('purchaseStartDate').value;
+        params.end_date = document.getElementById('purchaseEndDate').value;
         
         const purchases = await purchasesAPI.getAll(params);
         renderPurchasesTable(purchases);
@@ -119,7 +128,7 @@ function renderPurchasesTable(purchases) {
                 ${purchase.status === 'draft' || purchase.status === 'ordered' ? `
                     <button class="btn btn-sm btn-secondary" onclick="editPurchase(${purchase.id})">Edit</button>
                 ` : ''}
-                ${purchase.status === 'ordered' || purchase.status === 'partially_received' ? `
+                ${purchase.status === 'draft' || purchase.status === 'ordered' || purchase.status === 'partially_received' ? `
                     <button class="btn btn-sm btn-accent" onclick="receivePurchase(${purchase.id})">Receive</button>
                 ` : ''}
                 ${purchase.status !== 'cancelled' ? `<button class="btn btn-sm btn-danger" onclick="deletePurchase(${purchase.id})">Cancel</button>` : ''}
@@ -133,6 +142,8 @@ function setupEventListeners() {
     // Filters
     document.getElementById('vendorFilter').addEventListener('change', loadPurchases);
     document.getElementById('statusFilter').addEventListener('change', loadPurchases);
+    document.getElementById('purchaseStartDate').addEventListener('change', loadPurchases);
+    document.getElementById('purchaseEndDate').addEventListener('change', loadPurchases);
     
     // Purchase form
     document.getElementById('purchaseForm').addEventListener('submit', handlePurchaseSubmit);
@@ -385,7 +396,7 @@ async function handlePurchaseSubmit(event) {
         } else {
             // Create new purchase
             await purchasesAPI.create(purchaseData);
-            showToast('Purchase created successfully', 'success');
+            showToast('Purchase saved and inventory stock updated', 'success');
         }
         
         closePurchaseModal();

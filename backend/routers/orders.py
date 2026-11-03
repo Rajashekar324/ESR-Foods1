@@ -182,6 +182,8 @@ async def get_orders(
     restaurant_id: Optional[int] = None,
     customer_id: Optional[int] = None,
     order_status: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -201,6 +203,14 @@ async def get_orders(
     
     if order_status:
         query = query.filter(SalesOrder.order_status == order_status)
+
+    if start_date:
+        query = query.filter(SalesOrder.order_date >= datetime.fromisoformat(start_date))
+    if end_date:
+        end_dt = datetime.fromisoformat(end_date)
+        if len(end_date) == 10:
+            end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        query = query.filter(SalesOrder.order_date <= end_dt)
     
     orders = query.order_by(SalesOrder.order_date.desc()).offset(skip).limit(limit).all()
     return orders

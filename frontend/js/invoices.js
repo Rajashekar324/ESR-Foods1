@@ -12,6 +12,7 @@ async function initInvoicesPage() {
     if (!requireAuth()) return;
     
     try {
+        setDefaultDateRange('invoiceStartDate', 'invoiceEndDate');
         // Load restaurants for dropdown
         await loadRestaurantsForDropdown();
         
@@ -91,6 +92,8 @@ async function loadInvoices() {
         if (restaurantId) params.restaurant_id = parseInt(restaurantId);
         if (paymentStatus) params.payment_status = paymentStatus;
         if (finalized) params.is_finalized = finalized === 'true';
+        params.start_date = document.getElementById('invoiceStartDate').value;
+        params.end_date = document.getElementById('invoiceEndDate').value;
         
         const invoices = await invoicesAPI.getAll(params);
         renderInvoicesTable(invoices);
@@ -148,6 +151,8 @@ function setupEventListeners() {
     document.getElementById('restaurantFilter').addEventListener('change', loadInvoices);
     document.getElementById('paymentStatusFilter').addEventListener('change', loadInvoices);
     document.getElementById('finalizedFilter').addEventListener('change', loadInvoices);
+    document.getElementById('invoiceStartDate').addEventListener('change', loadInvoices);
+    document.getElementById('invoiceEndDate').addEventListener('change', loadInvoices);
     
     // Invoice form
     document.getElementById('invoiceForm').addEventListener('submit', handleInvoiceSubmit);
