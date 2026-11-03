@@ -98,8 +98,12 @@
 
             <!-- Filter Bar -->
             <div class="filter-bar">
-                <input type="date" id="orderStartDate" class="form-input filter-select" aria-label="Order date from">
-                <input type="date" id="orderEndDate" class="form-input filter-select" aria-label="Order date to">
+                <label class="form-label" for="orderStartDate" style="margin: 0;">From date
+                    <input type="date" id="orderStartDate" class="form-input filter-select" aria-label="Order date from">
+                </label>
+                <label class="form-label" for="orderEndDate" style="margin: 0;">To date
+                    <input type="date" id="orderEndDate" class="form-input filter-select" aria-label="Order date to">
+                </label>
                 <select id="customerTypeFilter" class="form-select filter-select">
                     <option value="">All Types</option>
                     <option value="restaurant">Restaurant</option>
@@ -117,6 +121,7 @@
                     <option value="delivered">Delivered</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
+                <button type="button" class="btn btn-outline" id="applyOrderFilters">Apply filters</button>
                 <button class="btn btn-primary" onclick="openOrderModal()">New Order</button>
             </div>
 

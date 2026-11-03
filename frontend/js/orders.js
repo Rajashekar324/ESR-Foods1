@@ -160,8 +160,7 @@ function setupEventListeners() {
     document.getElementById('customerTypeFilter').addEventListener('change', loadOrders);
     document.getElementById('restaurantFilter').addEventListener('change', loadOrders);
     document.getElementById('statusFilter').addEventListener('change', loadOrders);
-    document.getElementById('orderStartDate').addEventListener('change', loadOrders);
-    document.getElementById('orderEndDate').addEventListener('change', loadOrders);
+    document.getElementById('applyOrderFilters').addEventListener('click', loadOrders);
     
     // Order form
     document.getElementById('orderForm').addEventListener('submit', handleOrderSubmit);
